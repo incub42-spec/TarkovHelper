@@ -1,6 +1,7 @@
 <Window x:Class="TarkovHelper.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="app.ico"
         Title="Tarkov Helper — квесты, убежище и лут"
         Width="980" Height="680"
         WindowStartupLocation="CenterScreen">

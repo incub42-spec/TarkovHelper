@@ -8,8 +8,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyTitle>Tarkov Helper</AssemblyTitle>
-    <Version>0.1.0</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- иконка в ресурсах: для окон приложения (Window.Icon) -->
+    <Resource Include="app.ico" />
+  </ItemGroup>
 
 </Project>
