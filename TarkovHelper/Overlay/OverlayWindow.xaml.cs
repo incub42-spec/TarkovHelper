@@ -174,9 +174,16 @@ public partial class OverlayWindow : Window
 
             if (result.Found.Count == 0)
             {
-                ShowLines(pt, ("Станции не распознаны", MutedBrush),
-                    ($"Откройте общий вид убежища (или окно станции) и нажмите " +
-                     $"{Services.HotkeyNames.Describe(App.Services.Settings.HideoutHotkey)}", MutedBrush));
+                // название узнали, а цифру уровня — нет: подсказываем, куда навести
+                if (result.NoLevel.Count > 0)
+                    ShowLines(pt,
+                        ($"{string.Join(", ", result.NoLevel.Select(s => s.Name))} — уровень не считался",
+                            MutedBrush),
+                        ("Наведите курсор на иконку станции с цифрой уровня", MutedBrush));
+                else
+                    ShowLines(pt, ("Станция не распознана", MutedBrush),
+                        ($"Наведите курсор на станцию в нижней панели убежища и нажмите " +
+                         $"{Services.HotkeyNames.Describe(App.Services.Settings.HideoutHotkey)}", MutedBrush));
                 return;
             }
 
@@ -187,12 +194,19 @@ public partial class OverlayWindow : Window
             }
             App.Services.SaveProgress();
 
-            var lines = new List<(string, System.Windows.Media.Brush)>
+            var lines = new List<(string, System.Windows.Media.Brush)>();
+            if (result.Found.Count == 1)
             {
-                ($"Убежище обновлено — станций: {result.Found.Count}", OkBrush),
-            };
-            foreach (var f in result.Found.OrderBy(f => f.Station.Name).Take(10))
-                lines.Add(($"● {f.Station.Name} — ур. {f.Level}", HideoutBrush));
+                var one = result.Found[0];
+                lines.Add(($"{one.Station.Name} — ур. {one.Level}", OkBrush));
+                lines.Add(("Сохранено", HideoutBrush));
+            }
+            else
+            {
+                lines.Add(($"Убежище обновлено — станций: {result.Found.Count}", OkBrush));
+                foreach (var f in result.Found.OrderBy(f => f.Station.Name).Take(10))
+                    lines.Add(($"● {f.Station.Name} — ур. {f.Level}", HideoutBrush));
+            }
             if (result.Found.Count > 10)
                 lines.Add(($"…и ещё {result.Found.Count - 10}", MutedBrush));
             if (result.NoLevel.Count > 0)

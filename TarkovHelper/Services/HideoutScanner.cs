@@ -17,7 +17,8 @@ namespace TarkovHelper.Services;
 internal static partial class HideoutScanner
 {
     public sealed record StationLevel(HideoutStation Station, int Level);
-    public sealed record Result(List<StationLevel> Found, List<HideoutStation> NoLevel);
+    /// <summary>How — каким способом получен результат, показывается в оверлее.</summary>
+    public sealed record Result(List<StationLevel> Found, List<HideoutStation> NoLevel, string How = "");
     /// <summary>Снятая область экрана — оверлей подсвечивает её для отладки.</summary>
     public sealed record Region(int X, int Y, int W, int H);
 
@@ -37,7 +38,14 @@ internal static partial class HideoutScanner
         var r = info.rcMonitor;
         var monitorWidth = r.Right - r.Left;
 
-        // Сначала нижняя панель убежища: там у каждой станции подписаны название
+        // Основной способ — одна станция под курсором. Наводим на её плитку
+        // (иконка с цифрой уровня + название) и жмём хоткей: маленькая область
+        // распознаётся куда надёжнее, чем вся панель разом, а станции набираются
+        // по одной. Остальные проходы — запасные.
+        var cell = await ScanCellAsync(data, r, cursor, onRegion);
+        if (cell.Found.Count > 0 || cell.NoLevel.Count > 0) return cell;
+
+        // Затем вся нижняя панель убежища: там у каждой станции подписаны название
         // и статус — уровень цифрой либо «Заблокировано». Это надёжнее иконок
         // на карте; панель прокручивается, поэтому сканировать можно частями.
         var panel = await ScanBottomPanelAsync(data, r, onRegion);
@@ -137,7 +145,96 @@ internal static partial class HideoutScanner
             }
         }
 
-        return new Result(found, noLevel);
+        return new Result(found, noLevel, "весь экран");
+    }
+
+    /// <summary>
+    /// Точечный разбор одной станции: берём небольшой прямоугольник вокруг курсора,
+    /// чтобы в кадр попала ровно одна плитка (иконка с цифрой уровня и название).
+    /// Соседние станции в область не влезают, поэтому перепутать уровень нельзя.
+    /// </summary>
+    private static async Task<Result> ScanCellAsync(
+        GameData data, RECT r, POINT cursor, Action<Region>? onRegion)
+    {
+        var width = r.Right - r.Left;
+        var height = r.Bottom - r.Top;
+
+        // ~13% экрана в каждую сторону: одна плитка панели с запасом на подпись
+        var w = (int)(width * 0.13);
+        var h = (int)(height * 0.13);
+        var x = Math.Clamp(cursor.X - w / 2, r.Left, Math.Max(r.Left, r.Right - w));
+        var y = Math.Clamp(cursor.Y - h / 2, r.Top, Math.Max(r.Top, r.Bottom - h));
+
+        // масштаб 4: область маленькая, можно увеличить сильнее обычного
+        var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 4);
+        onRegion?.Invoke(new Region(x, y, w, h));
+
+        AppendDebug(lines, "ячейка под курсором");
+
+        // координаты курсора внутри снятой области
+        double cx = cursor.X - x, cy = cursor.Y - y;
+
+        var names = MatchNames(data, lines);
+        if (names.Count == 0)
+            return new Result(new List<StationLevel>(), new List<HideoutStation>(), "ячейка под курсором");
+
+        // если в кадр всё же попало два названия — берём то, что ближе к курсору
+        var pick = names.Values
+            .OrderBy(n => (n.X - cx) * (n.X - cx) + (n.Y - cy) * (n.Y - cy))
+            .First();
+
+        var badges = new List<(int Value, double X, double Y)>();
+        var locked = false;
+        foreach (var l in lines)
+        {
+            var clean = l.Text.Trim();
+            if (LockedRegex().IsMatch(clean)) { locked = true; continue; }
+
+            // явная надпись «УРОВЕНЬ N» в окне станции — она точнее бейджа
+            var m = LevelRegex().Match(clean);
+            if (m.Success)
+            {
+                var val = int.Parse(m.Groups[1].Value);
+                if (val <= MaxLevel(pick.St))
+                    return new Result(
+                        new List<StationLevel> { new(pick.St, val) },
+                        new List<HideoutStation>(), "ячейка под курсором");
+            }
+
+            if (clean.Length > 3) continue;
+            var digits = new string(clean.Where(char.IsDigit).ToArray());
+            if (digits.Length is >= 1 and <= 2)
+                badges.Add((digits[^1] - '0', l.X, l.Y));
+        }
+
+        if (locked || lines.Any(l => NotBuiltRegex().IsMatch(l.Text)))
+            return new Result(
+                new List<StationLevel> { new(pick.St, 0) },
+                new List<HideoutStation>(), "ячейка под курсором");
+
+        // область охватывает одну плитку, поэтому подходит любой бейдж в кадре:
+        // берём ближайший к названию с допустимым для станции значением
+        var best = (Value: 0, Dist: double.MaxValue);
+        foreach (var b in badges)
+        {
+            if (b.Value > MaxLevel(pick.St)) continue;
+            var d = (b.X - pick.X) * (b.X - pick.X) + (b.Y - pick.Y) * (b.Y - pick.Y);
+            if (d < best.Dist) best = (b.Value, d);
+        }
+
+        if (best.Dist < double.MaxValue)
+            return new Result(
+                new List<StationLevel> { new(pick.St, best.Value) },
+                new List<HideoutStation>(), "ячейка под курсором");
+
+        if (MaxLevel(pick.St) == 1) // одноуровневая станция и не заблокирована
+            return new Result(
+                new List<StationLevel> { new(pick.St, 1) },
+                new List<HideoutStation>(), "ячейка под курсором");
+
+        return new Result(
+            new List<StationLevel>(),
+            new List<HideoutStation> { pick.St }, "ячейка под курсором");
     }
 
     /// <summary>
@@ -210,7 +307,7 @@ internal static partial class HideoutScanner
                 noLevel.Add(st);
         }
 
-        return new Result(found, noLevel);
+        return new Result(found, noLevel, "нижняя панель");
     }
 
     /// <summary>Названия станций среди распознанных строк: станция -> позиция.</summary>
