@@ -207,13 +207,40 @@ internal static partial class HideoutScanner
         }
         if (match.St == null) return none;
 
+        var st = match.St;
+        var max = MaxLevel(st);
+
         // статус пишется вплотную под заголовком — описание станции уже не берём
         var band = lines
             .Where(l => l.Y >= match.Y - height * 0.02 && l.Y <= match.Y + height * 0.05)
             .ToList();
 
+        Result One(int level) => new(
+            new List<StationLevel> { new(st, level) }, new List<HideoutStation>(), "окно станции");
+
+        if (band.Any(l => LockedRegex().IsMatch(l.Text)) ||
+            lines.Any(l => NotBuiltRegex().IsMatch(l.Text)))
+            return One(0);
+
+        // Самая нижняя надпись «УРОВЕНЬ N» в окне — вкладка следующего уровня,
+        // построенный на единицу меньше (у станции с цифрой 02 внизу «УРОВЕНЬ 3»).
+        // Крупный текст читается несравнимо надёжнее мелкой цифры на иконке.
+        var body = lines.Where(l => l.Y > match.Y + height * 0.02).ToList();
+        foreach (var l in body.OrderByDescending(l => l.Y))
+        {
+            var m = LevelRegex().Match(l.Text);
+            if (!m.Success) continue;
+            var next = int.Parse(m.Groups[1].Value);
+            if (next >= 1 && next <= max + 1) return One(Math.Min(next - 1, max));
+            break;
+        }
+
+        // Вкладки следующего уровня нет, а тело окна прочиталось — станция
+        // прокачана до максимума (у «Склада» 04 вместо неё «Склад максимального размера»)
+        if (body.Count >= 3) return One(max);
+
         return await ParseSingle(data, band, "окно станции", match, double.MaxValue,
-            (nx, ny, max) => ReadBadgeAsync(nx, ny, x, y, width * 0.075, height, max));
+            (nx, ny, m) => ReadBadgeAsync(nx, ny, x, y, width * 0.075, height, m));
     }
 
     /// <summary>
@@ -246,14 +273,22 @@ internal static partial class HideoutScanner
         foreach (var l in near)
         {
             var clean = l.Text.Trim();
-            if (LockedRegex().IsMatch(clean)) { locked = true; continue; }
+            // «Заблокировано» пишется прямо под своим названием, поэтому берём
+            // его строго рядом: у соседней плитки оно уже не наше
+            if (LockedRegex().IsMatch(clean))
+            {
+                if (Math.Abs(l.X - match.X) <= maxDx * 0.45) locked = true;
+                continue;
+            }
 
             // «УРОВЕНЬ N» внизу окна станции не читаем: это вкладка следующего
             // уровня, а не построенного (у станции с цифрой 02 там написано 3)
 
             if (clean.Length > 3) continue;
             var digits = new string(clean.Where(char.IsDigit).ToArray());
-            if (digits.Length is >= 1 and <= 2)
+            // «0» в одиночку — это половина «01»/«02»: вторая цифра потерялась,
+            // а уровень 0 бейджем не показывают, у непостроенных там замок
+            if (digits.Length is >= 1 and <= 2 && digits != "0")
                 badges.Add((digits[^1] - '0', l.X, l.Y));
         }
 
@@ -305,7 +340,7 @@ internal static partial class HideoutScanner
         foreach (var l in lines)
         {
             var digits = new string(l.Text.Where(char.IsDigit).ToArray());
-            if (digits.Length is < 1 or > 2) continue;
+            if (digits.Length is < 1 or > 2 || digits == "0") continue;
             // «01» с тёмной иконкой читается как «21»/«61», но последняя цифра верна
             var val = digits[^1] - '0';
             if (val <= maxLevel) return val;
@@ -395,7 +430,9 @@ internal static partial class HideoutScanner
             }
             if (clean.Length > 3) continue;
             var digits = new string(clean.Where(char.IsDigit).ToArray());
-            if (digits.Length is >= 1 and <= 2)
+            // «0» в одиночку — это половина «01»/«02»: вторая цифра потерялась,
+            // а уровень 0 бейджем не показывают, у непостроенных там замок
+            if (digits.Length is >= 1 and <= 2 && digits != "0")
                 badges.Add((digits[^1] - '0', l.X, l.Y));
         }
 
