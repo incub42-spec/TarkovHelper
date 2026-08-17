@@ -23,8 +23,32 @@ internal static partial class HideoutScanner
     /// <summary>Снятая область экрана — оверлей подсвечивает её для отладки.</summary>
     public sealed record Region(int X, int Y, int W, int H);
 
-    [GeneratedRegex(@"(?i)(?:УРОВЕНЬ|УРОВ|УР|LEVEL|LVL)\W{0,4}(\d{1,2})")]
+    // цифру после слова захватываем вместе с буквами-двойниками: OCR регулярно
+    // выдаёт «УРОВЕНЬ З» вместо «УРОВЕНЬ 3»
+    [GeneratedRegex(@"(?i)(?:УРОВЕНЬ|УРОВ|УР|LEVEL|LVL)\W{0,4}([\dЗзЭэОоOoЧчІlI|]{1,2})")]
     private static partial Regex LevelRegex();
+
+    /// <summary>
+    /// Число из строки, где OCR мог принять цифру за букву: «З» вместо 3,
+    /// «О» вместо 0, «Ч» вместо 4. null — цифр не осталось или их слишком много.
+    /// </summary>
+    private static int? ParseDigits(string s)
+    {
+        var digits = new List<char>();
+        foreach (var ch in s)
+        {
+            var c = ch switch
+            {
+                'З' or 'з' or 'Э' or 'э' => '3',
+                'О' or 'о' or 'O' or 'o' => '0',
+                'Ч' or 'ч' => '4',
+                'І' or 'l' or 'I' or '|' => '1',
+                _ => ch,
+            };
+            if (char.IsDigit(c)) digits.Add(c);
+        }
+        return digits.Count is >= 1 and <= 2 ? int.Parse(new string(digits.ToArray())) : null;
+    }
 
     [GeneratedRegex(@"(?i)ПОСТРОИТЬ|НЕ ПОСТРОЕНО|CONSTRUCT|NOT BUILT")]
     private static partial Regex NotBuiltRegex();
@@ -228,16 +252,21 @@ internal static partial class HideoutScanner
         var body = lines.Where(l => l.Y > match.Y + height * 0.02).ToList();
         foreach (var l in body.OrderByDescending(l => l.Y))
         {
+            // вкладка — короткая строка целиком («УРОВЕНЬ 3»), а не кусок описания,
+            // где после слова «уровень» может стоять слово с буквой-двойником цифры
+            if (l.Text.Trim().Length > 14) continue;
             var m = LevelRegex().Match(l.Text);
             if (!m.Success) continue;
-            var next = int.Parse(m.Groups[1].Value);
-            if (next >= 1 && next <= max + 1) return One(Math.Min(next - 1, max));
+            var next = ParseDigits(m.Groups[1].Value);
+            if (next == null) continue;
+            if (next >= 1 && next <= max + 1) return One(Math.Min(next.Value - 1, max));
             break;
         }
 
-        // Вкладки следующего уровня нет, а тело окна прочиталось — станция
-        // прокачана до максимума (у «Склада» 04 вместо неё «Склад максимального размера»)
-        if (body.Count >= 3) return One(max);
+        // Вкладки следующего уровня нет — станция может быть на максимуме, но
+        // только если игра прямо это написала («Склад максимального размера»).
+        // Без такой подписи молчим: пустой результат честнее выдуманного уровня.
+        if (body.Any(l => MaxedRegex().IsMatch(l.Text))) return One(max);
 
         return await ParseSingle(data, band, "окно станции", match, double.MaxValue,
             (nx, ny, m) => ReadBadgeAsync(nx, ny, x, y, width * 0.075, height, m));
@@ -285,11 +314,11 @@ internal static partial class HideoutScanner
             // уровня, а не построенного (у станции с цифрой 02 там написано 3)
 
             if (clean.Length > 3) continue;
-            var digits = new string(clean.Where(char.IsDigit).ToArray());
-            // «0» в одиночку — это половина «01»/«02»: вторая цифра потерялась,
-            // а уровень 0 бейджем не показывают, у непостроенных там замок
-            if (digits.Length is >= 1 and <= 2 && digits != "0")
-                badges.Add((digits[^1] - '0', l.X, l.Y));
+            // «01» с тёмной иконкой читается как «21»/«61», но последняя цифра верна;
+            // ноль в одиночку — половина «01»/«02», уровень 0 бейджем не показывают
+            var val = ParseDigits(clean);
+            if (val is > 0)
+                badges.Add((val.Value % 10, l.X, l.Y));
         }
 
         if (locked || near.Any(l => NotBuiltRegex().IsMatch(l.Text)))
@@ -339,11 +368,11 @@ internal static partial class HideoutScanner
 
         foreach (var l in lines)
         {
-            var digits = new string(l.Text.Where(char.IsDigit).ToArray());
-            if (digits.Length is < 1 or > 2 || digits == "0") continue;
+            var parsed = ParseDigits(l.Text);
+            if (parsed is not > 0) continue;
             // «01» с тёмной иконкой читается как «21»/«61», но последняя цифра верна
-            var val = digits[^1] - '0';
-            if (val <= maxLevel) return val;
+            var val = parsed.Value % 10;
+            if (val > 0 && val <= maxLevel) return val;
         }
         return null;
     }
@@ -429,11 +458,11 @@ internal static partial class HideoutScanner
                 continue;
             }
             if (clean.Length > 3) continue;
-            var digits = new string(clean.Where(char.IsDigit).ToArray());
-            // «0» в одиночку — это половина «01»/«02»: вторая цифра потерялась,
-            // а уровень 0 бейджем не показывают, у непостроенных там замок
-            if (digits.Length is >= 1 and <= 2 && digits != "0")
-                badges.Add((digits[^1] - '0', l.X, l.Y));
+            // «01» с тёмной иконкой читается как «21»/«61», но последняя цифра верна;
+            // ноль в одиночку — половина «01»/«02», уровень 0 бейджем не показывают
+            var val = ParseDigits(clean);
+            if (val is > 0)
+                badges.Add((val.Value % 10, l.X, l.Y));
         }
 
         var found = new List<StationLevel>();
@@ -583,6 +612,10 @@ internal static partial class HideoutScanner
 
     [GeneratedRegex(@"(?i)заблокир|locked")]
     private static partial Regex LockedRegex();
+
+    /// <summary>Подпись станции, прокачанной до предела: «Склад максимального размера».</summary>
+    [GeneratedRegex(@"(?i)максимальн|maximum|max level")]
+    private static partial Regex MaxedRegex();
 
     private static IEnumerable<string?> Names(HideoutStation s)
     {
