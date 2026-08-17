@@ -44,6 +44,68 @@ internal static class NativeMethods
     public const uint VK_F9 = 0x78;
     public const uint VK_F10 = 0x79;
 
+    // виртуальные коды кнопок мыши (RegisterHotKey их не принимает — ловим Raw Input)
+    public const uint VK_MBUTTON = 0x04;
+    public const uint VK_XBUTTON1 = 0x05;
+    public const uint VK_XBUTTON2 = 0x06;
+
+    // --- Raw Input: пассивное чтение кнопок мыши, без перехвата и инжекта ---
+
+    public const int WM_INPUT = 0x00FF;
+    public const uint RID_INPUT = 0x10000003;
+    public const uint RIDEV_INPUTSINK = 0x00000100;
+    public const uint RIM_TYPEMOUSE = 0;
+
+    public const ushort RI_MOUSE_MIDDLE_BUTTON_DOWN = 0x0010;
+    public const ushort RI_MOUSE_BUTTON_4_DOWN = 0x0040;
+    public const ushort RI_MOUSE_BUTTON_5_DOWN = 0x0100;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWINPUTDEVICE
+    {
+        public ushort usUsagePage;
+        public ushort usUsage;
+        public uint dwFlags;
+        public IntPtr hwndTarget;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWINPUTHEADER
+    {
+        public uint dwType;
+        public uint dwSize;
+        public IntPtr hDevice;
+        public IntPtr wParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWMOUSE
+    {
+        public ushort usFlags;
+        public ushort usButtonFlags;
+        public ushort usButtonData;
+        public uint ulRawButtons;
+        public int lLastX;
+        public int lLastY;
+        public uint ulExtraInformation;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWINPUTMOUSE
+    {
+        public RAWINPUTHEADER header;
+        public RAWMOUSE mouse;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterRawInputDevices(
+        [In] RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetRawInputData(
+        IntPtr hRawInput, uint uiCommand, out RAWINPUTMOUSE pData,
+        ref uint pcbSize, uint cbSizeHeader);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {

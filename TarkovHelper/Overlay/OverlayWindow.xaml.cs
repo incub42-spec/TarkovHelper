@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -62,8 +63,29 @@ public partial class OverlayWindow : Window
         SetWindowLong(hwnd, GWL_EXSTYLE,
             exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
 
+        RegisterMouseInput(hwnd);
         ApplyHotkeys();
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+    }
+
+    /// <summary>
+    /// Подписка на кнопки мыши через Raw Input: система сама присылает нам
+    /// уведомления о нажатиях (как push-to-talk в мессенджерах). Это пассивное
+    /// чтение — ни перехвата ввода, ни вмешательства в игру.
+    /// </summary>
+    private static void RegisterMouseInput(IntPtr hwnd)
+    {
+        var devices = new[]
+        {
+            new RAWINPUTDEVICE
+            {
+                usUsagePage = 0x01, // generic desktop
+                usUsage = 0x02,     // mouse
+                dwFlags = RIDEV_INPUTSINK, // получать события и без фокуса
+                hwndTarget = hwnd,
+            },
+        };
+        RegisterRawInputDevices(devices, 1, (uint)Marshal.SizeOf<RAWINPUTDEVICE>());
     }
 
     /// <summary>
@@ -78,9 +100,12 @@ public partial class OverlayWindow : Window
         UnregisterHotKey(hwnd, HotkeyId);
         UnregisterHotKey(hwnd, HideoutHotkeyId);
 
+        // кнопки мыши регистрировать не нужно — они приходят через Raw Input
         var p = App.Services.Progress;
-        HotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, 0, p.ItemHotkey);
-        HideoutHotkeyRegistered = RegisterHotKey(hwnd, HideoutHotkeyId, 0, p.HideoutHotkey);
+        HotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.ItemHotkey)
+            || RegisterHotKey(hwnd, HotkeyId, 0, p.ItemHotkey);
+        HideoutHotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.HideoutHotkey)
+            || RegisterHotKey(hwnd, HideoutHotkeyId, 0, p.HideoutHotkey);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -96,6 +121,12 @@ public partial class OverlayWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WM_INPUT)
+        {
+            HandleMouseInput(lParam);
+            // не помечаем handled: нажатие должно дойти до игры как обычно
+        }
+
         if (msg == WM_HOTKEY)
         {
             switch (wParam.ToInt32())
@@ -447,6 +478,30 @@ public partial class OverlayWindow : Window
         };
         anim.Completed += (_, _) => ScanFrame.Visibility = Visibility.Collapsed;
         ScanFrame.BeginAnimation(OpacityProperty, anim);
+    }
+
+    /// <summary>
+    /// Разбирает сообщение Raw Input и запускает сканирование, если нажата
+    /// кнопка мыши, назначенная в настройках.
+    /// </summary>
+    private void HandleMouseInput(IntPtr hRawInput)
+    {
+        var size = (uint)Marshal.SizeOf<RAWINPUTMOUSE>();
+        if (GetRawInputData(hRawInput, RID_INPUT, out var data, ref size,
+                (uint)Marshal.SizeOf<RAWINPUTHEADER>()) == uint.MaxValue)
+            return;
+        if (data.header.dwType != RIM_TYPEMOUSE) return;
+
+        var flags = data.mouse.usButtonFlags;
+        uint pressed = 0;
+        if ((flags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0) pressed = VK_MBUTTON;
+        else if ((flags & RI_MOUSE_BUTTON_4_DOWN) != 0) pressed = VK_XBUTTON1;
+        else if ((flags & RI_MOUSE_BUTTON_5_DOWN) != 0) pressed = VK_XBUTTON2;
+        if (pressed == 0) return;
+
+        var p = App.Services.Progress;
+        if (p.ItemHotkey == pressed) _ = ScanAsync();
+        else if (p.HideoutHotkey == pressed) _ = ScanHideoutAsync();
     }
 
     /// <summary>Скрывает панель и даёт композитору время убрать её с экрана перед снимком.</summary>

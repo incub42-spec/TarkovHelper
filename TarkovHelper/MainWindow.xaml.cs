@@ -114,26 +114,18 @@ public partial class MainWindow : Window
         button.Content = "нажмите клавишу…";
         button.Focus();
 
-        void OnKey(object s, System.Windows.Input.KeyEventArgs args)
+        System.Windows.Input.KeyEventHandler? onKey = null;
+        System.Windows.Input.MouseButtonEventHandler? onMouse = null;
+
+        void Stop()
         {
-            args.Handled = true;
-            // системные клавиши приходят как Key.System, реальная лежит в SystemKey
-            var key = args.Key == System.Windows.Input.Key.System ? args.SystemKey : args.Key;
-
-            button.PreviewKeyDown -= OnKey;
+            button.PreviewKeyDown -= onKey;
+            button.PreviewMouseDown -= onMouse;
             button.Content = previous;
+        }
 
-            if (key == System.Windows.Input.Key.Escape) return;
-            if (HotkeyNames.IsForbidden(key))
-            {
-                MessageBox.Show(this,
-                    "Эту клавишу назначить нельзя: модификаторы и системные клавиши " +
-                    "(Esc, Tab, Enter, Win, Caps Lock) сломают управление игрой и Windows.",
-                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var vk = HotkeyNames.ToVirtualKey(key);
+        void Assign(uint vk)
+        {
             var p = App.Services.Progress;
             if (isItem) p.ItemHotkey = vk; else p.HideoutHotkey = vk;
             App.Services.SaveProgress();
@@ -153,7 +145,44 @@ public partial class MainWindow : Window
             }
         }
 
-        button.PreviewKeyDown += OnKey;
+        onKey = (_, args) =>
+        {
+            args.Handled = true;
+            // системные клавиши приходят как Key.System, реальная лежит в SystemKey
+            var key = args.Key == System.Windows.Input.Key.System ? args.SystemKey : args.Key;
+            Stop();
+
+            if (key == System.Windows.Input.Key.Escape) return;
+            if (HotkeyNames.IsForbidden(key))
+            {
+                MessageBox.Show(this,
+                    "Эту клавишу назначить нельзя: модификаторы и системные клавиши " +
+                    "(Esc, Tab, Enter, Win, Caps Lock) сломают управление игрой и Windows.",
+                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            Assign(HotkeyNames.ToVirtualKey(key));
+        };
+
+        onMouse = (_, args) =>
+        {
+            args.Handled = true;
+            var vk = HotkeyNames.FromMouseButton(args.ChangedButton);
+            Stop();
+
+            if (vk == 0)
+            {
+                MessageBox.Show(this,
+                    "Доступны только колёсико и боковые кнопки мыши: левая и правая " +
+                    "заняты стрельбой и прицеливанием в игре.",
+                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            Assign(vk);
+        };
+
+        button.PreviewKeyDown += onKey;
+        button.PreviewMouseDown += onMouse;
     }
 
     // ---------- вкладка «Квесты» ----------
