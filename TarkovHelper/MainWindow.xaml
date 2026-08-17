@@ -94,8 +94,14 @@
                                             DisplayMemberBinding="{Binding Level}"/>
                             <GridViewColumn Header="Каппа" Width="60"
                                             DisplayMemberBinding="{Binding Kappa}"/>
-                            <GridViewColumn Header="Отмечен" Width="100"
-                                            DisplayMemberBinding="{Binding CheckedAt}"/>
+                            <GridViewColumn Header="Отмечен" Width="110">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CheckedAt}"
+                                                   Foreground="{Binding CheckedBrush}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
                         </GridView>
                     </ListView.View>
                 </ListView>
@@ -108,13 +114,18 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="0,4">
-                                <TextBlock Text="{Binding Name}" Width="280" VerticalAlignment="Center"/>
+                                <!-- зелёная галочка у подтверждённых станций, красный крестик у остальных -->
+                                <TextBlock Text="{Binding StatusGlyph}" Foreground="{Binding StatusBrush}"
+                                           FontWeight="Bold" FontSize="15" Width="24"
+                                           TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" Width="270" VerticalAlignment="Center"/>
                                 <TextBlock Text="Построен уровень:" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <ComboBox ItemsSource="{Binding LevelOptions}"
                                           SelectedItem="{Binding CurrentLevel, Mode=TwoWay}"
                                           Width="70" HorizontalAlignment="Left"/>
                                 <TextBlock Text="{Binding CheckedAt}" Margin="14,0,0,0"
-                                           VerticalAlignment="Center" Opacity="0.65"/>
+                                           Foreground="{Binding StatusBrush}"
+                                           VerticalAlignment="Center"/>
                             </DockPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

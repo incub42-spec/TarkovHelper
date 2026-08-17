@@ -25,6 +25,8 @@ public partial class OverlayWindow : Window
     private static readonly Brush BarterBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xBE, 0xC5));
     private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromRgb(0x90, 0xA4, 0xAE));
     private static readonly Brush OkBrush = new SolidColorBrush(Color.FromRgb(0x81, 0xC7, 0x84));
+    /// <summary>Красный: станция не распозналась или области разошлись.</summary>
+    private static readonly Brush FailBrush = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
 
     private readonly DispatcherTimer _hideTimer;
     private bool _scanning;
@@ -183,11 +185,11 @@ public partial class OverlayWindow : Window
                 // название узнали, а цифру уровня — нет: подсказываем, куда навести
                 if (result.NoLevel.Count > 0)
                     ShowLines(pt,
-                        ($"{string.Join(", ", result.NoLevel.Select(s => s.Name))} — уровень не считался",
-                            MutedBrush),
+                        ($"✕ {string.Join(", ", result.NoLevel.Select(s => s.Name))} — уровень не считался",
+                            FailBrush),
                         (result.Note ?? "Наведите курсор на иконку станции с цифрой уровня", MutedBrush));
                 else
-                    ShowLines(pt, ("Станция не распознана", MutedBrush),
+                    ShowLines(pt, ("✕ Станция не распознана", FailBrush),
                         ($"Наведите курсор на станцию в нижней панели убежища и нажмите " +
                          $"{Services.HotkeyNames.Describe(App.Services.Settings.HideoutHotkey)}", MutedBrush));
                 return;
@@ -204,12 +206,12 @@ public partial class OverlayWindow : Window
             if (result.Found.Count == 1)
             {
                 var one = result.Found[0];
-                lines.Add(($"{one.Station.Name} — ур. {one.Level}", OkBrush));
+                lines.Add(($"✓ {one.Station.Name} — ур. {one.Level}", OkBrush));
                 lines.Add((result.Note ?? "Сохранено", HideoutBrush));
             }
             else
             {
-                lines.Add(($"Убежище обновлено — станций: {result.Found.Count}", OkBrush));
+                lines.Add(($"✓ Убежище обновлено — станций: {result.Found.Count}", OkBrush));
                 foreach (var f in result.Found.OrderBy(f => f.Station.Name).Take(10))
                     lines.Add(($"● {f.Station.Name} — ур. {f.Level}", HideoutBrush));
             }

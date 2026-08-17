@@ -158,7 +158,8 @@ internal static partial class HideoutScanner
 
         var cell = width * 0.075; // ширина плитки станции в нижней панели
         var match = MatchNearCursor(data, lines, cursor.X - x, cursor.Y - y, height * 0.012, cell);
-        return ParseSingle(data, lines, "плитка под курсором", match, cell);
+        return await ParseSingle(data, lines, "плитка под курсором", match, cell,
+            (nx, ny, max) => ReadBadgeAsync(nx, ny, x, y, cell, height, max));
     }
 
     /// <summary>
@@ -191,10 +192,12 @@ internal static partial class HideoutScanner
         var width = r.Right - r.Left;
         var height = r.Bottom - r.Top;
 
-        var x = r.Left + (int)(width * 0.36);
-        var y = r.Top + (int)(height * 0.10);
-        var w = width - (int)(width * 0.36);
-        var h = (int)(height * 0.30);
+        // окно прижато к правому краю и растёт вверх от нижней панели, поэтому
+        // берём всю правую часть экрана без самой панели внизу
+        var x = r.Left + (int)(width * 0.34);
+        var y = r.Top + (int)(height * 0.05);
+        var w = width - (int)(width * 0.34);
+        var h = (int)(height * 0.84);
 
         var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 3);
         onRegion?.Invoke(new Region(x, y, w, h));
@@ -223,17 +226,22 @@ internal static partial class HideoutScanner
             .Where(l => l.Y >= match.Y - height * 0.02 && l.Y <= match.Y + height * 0.05)
             .ToList();
 
-        return ParseSingle(data, band, "окно станции", match, double.MaxValue);
+        return await ParseSingle(data, band, "окно станции", match, double.MaxValue,
+            (nx, ny, max) => ReadBadgeAsync(nx, ny, x, y, width * 0.075, height, max));
     }
 
     /// <summary>
-    /// Статус уже найденной станции: явная надпись «УРОВЕНЬ N», затем
-    /// «Заблокировано»/«Построить», затем цифровой бейдж на иконке.
+    /// Статус уже найденной станции: «Заблокировано»/«Построить», затем цифровой
+    /// бейдж на иконке, затем надпись «УРОВЕНЬ N». Именно в таком порядке:
+    /// в окне станции «УРОВЕНЬ N» внизу — это вкладка следующего уровня, а не
+    /// построенный, построенный показан цифрой на иконке рядом с названием.
     /// maxDx — насколько далеко по горизонтали от названия можно брать строки:
     /// в кадре с соседними плитками это отсекает их подписи и цифры.
+    /// readBadge — отдельный проход по иконке, если цифру не видно в общем кадре.
     /// </summary>
-    private static Result ParseSingle(GameData data, List<ScreenOcr.Line> lines, string how,
-        (HideoutStation? St, double X, double Y) match, double maxDx)
+    private static async Task<Result> ParseSingle(GameData data, List<ScreenOcr.Line> lines, string how,
+        (HideoutStation? St, double X, double Y) match, double maxDx,
+        Func<double, double, int, Task<int?>>? readBadge = null)
     {
         var none = new Result(new List<StationLevel>(), new List<HideoutStation>(), how);
 
@@ -249,6 +257,7 @@ internal static partial class HideoutScanner
 
         var badges = new List<(int Value, double X, double Y)>();
         var locked = false;
+        int? levelText = null;
         foreach (var l in near)
         {
             var clean = l.Text.Trim();
@@ -258,7 +267,7 @@ internal static partial class HideoutScanner
             if (m.Success)
             {
                 var val = int.Parse(m.Groups[1].Value);
-                if (val <= MaxLevel(st)) return One(val);
+                if (val <= MaxLevel(st)) levelText ??= val;
             }
 
             if (clean.Length > 3) continue;
@@ -281,9 +290,48 @@ internal static partial class HideoutScanner
         }
         if (best.Dist < double.MaxValue) return One(best.Value);
 
+        // цифру на иконке общий проход часто не вытягивает: она мелкая и светлая
+        // на тёмном шестиграннике — снимаем её отдельно, крупно и контрастно
+        if (readBadge != null)
+        {
+            var badge = await readBadge(match.X, match.Y, MaxLevel(st));
+            if (badge != null) return One(badge.Value);
+        }
+
+        if (levelText != null) return One(levelText.Value);
+
         if (MaxLevel(st) == 1) return One(1); // одноуровневая и не заблокирована
 
         return new Result(new List<StationLevel>(), new List<HideoutStation> { st }, how);
+    }
+
+    /// <summary>
+    /// Отдельный проход по иконке станции ради цифры уровня. Иконка стоит слева
+    /// от названия, цифра — в её нижней части. Снимаем этот пятачок с большим
+    /// увеличением и порогом по яркости, иначе цифра теряется.
+    /// nameX/nameY — координаты названия внутри области, originX/originY — её угол.
+    /// </summary>
+    private static async Task<int?> ReadBadgeAsync(
+        double nameX, double nameY, int originX, int originY, double cell, int height, int maxLevel)
+    {
+        var bx = (int)(originX + nameX - cell * 0.85);
+        var by = (int)(originY + nameY - height * 0.012);
+        var bw = (int)(cell * 0.9);
+        var bh = (int)(height * 0.055);
+        if (bw < 8 || bh < 8) return null;
+
+        var lines = await ScreenOcr.RecognizeLayoutAsync(bx, by, bw, bh, scaleHint: 6, binarize: true);
+        AppendDebug(lines, "иконка уровня");
+
+        foreach (var l in lines)
+        {
+            var digits = new string(l.Text.Where(char.IsDigit).ToArray());
+            if (digits.Length is < 1 or > 2) continue;
+            // «01» с тёмной иконкой читается как «21»/«61», но последняя цифра верна
+            var val = digits[^1] - '0';
+            if (val <= maxLevel) return val;
+        }
+        return null;
     }
 
     /// <summary>

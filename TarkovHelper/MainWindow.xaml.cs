@@ -517,7 +517,16 @@ public partial class MainWindow : Window
         }
 
         /// <summary>Когда отмечен выполненным — чтобы видеть свежесть данных.</summary>
-        public string CheckedAt => FormatChecked(App.Services.Progress.QuestCheckedUtc, _quest.Id);
+        public string CheckedAt
+        {
+            get
+            {
+                var at = FormatChecked(App.Services.Progress.QuestCheckedUtc, _quest.Id);
+                return at.Length == 0 ? "" : "✓ " + at;
+            }
+        }
+
+        public Brush CheckedBrush => MainWindow.CheckedBrush;
     }
 
     /// <summary>«17.08 15:42» для недавних отметок, «—» если отметки не было.</summary>
@@ -559,5 +568,17 @@ public partial class MainWindow : Window
                 return at.Length == 0 ? "не проверялось" : "проверено " + at;
             }
         }
+
+        public bool IsChecked =>
+            App.Services.Progress.HideoutCheckedUtc.ContainsKey(_station.Id);
+
+        /// <summary>Галочка у проверенных станций, крестик у непроверенных.</summary>
+        public string StatusGlyph => IsChecked ? "✓" : "✕";
+        public Brush StatusBrush => IsChecked ? CheckedBrush : UncheckedBrush;
     }
+
+    private static readonly Brush CheckedBrush =
+        new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32));   // зелёный: подтверждено
+    private static readonly Brush UncheckedBrush =
+        new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));   // красный: ещё не проверяли
 }

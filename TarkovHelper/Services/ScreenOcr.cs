@@ -40,9 +40,12 @@ public static class ScreenOcr
         (await RecognizeLayoutAsync(x, y, width, height)).Select(l => l.Text).ToArray();
 
     /// <summary>То же, но с координатами строк (для разбора экранов с раскладкой).
-    /// savePngPath — сохранить снятый кадр как PNG (отладка: видно, что ушло в OCR).</summary>
+    /// savePngPath — сохранить снятый кадр как PNG (отладка: видно, что ушло в OCR).
+    /// binarize — светлый текст на тёмном фоне превратить в чёрный на белом:
+    /// так читаются мелкие цифры уровня на иконках убежища.</summary>
     public static async Task<List<Line>> RecognizeLayoutAsync(
-        int x, int y, int width, int height, int scaleHint = Scale, string? savePngPath = null)
+        int x, int y, int width, int height, int scaleHint = Scale, string? savePngPath = null,
+        bool binarize = false)
     {
         var engine = GetEngine()
             ?? throw new InvalidOperationException(
@@ -55,6 +58,8 @@ public static class ScreenOcr
             scale--;
 
         var pixels = CaptureBgra(x, y, width, height, scale, out var outW, out var outH);
+
+        if (binarize) Binarize(pixels);
 
         if (savePngPath != null)
         {
@@ -86,6 +91,23 @@ public static class ScreenOcr
             })
             .OrderBy(l => l.Y)
             .ToList();
+    }
+
+    /// <summary>
+    /// Порог по яркости: светлые пиксели (текст интерфейса) становятся чёрными,
+    /// тёмный фон — белым. Windows OCR заметно лучше читает мелкие цифры,
+    /// когда контраст доведён до предела, а фон однородный.
+    /// </summary>
+    private static void Binarize(byte[] bgra)
+    {
+        const int threshold = 140;
+        for (var i = 0; i < bgra.Length; i += 4)
+        {
+            var lum = (bgra[i + 2] * 299 + bgra[i + 1] * 587 + bgra[i] * 114) / 1000;
+            var v = (byte)(lum > threshold ? 0 : 255);
+            bgra[i] = bgra[i + 1] = bgra[i + 2] = v;
+            bgra[i + 3] = 255;
+        }
     }
 
     private static byte[] CaptureBgra(int x, int y, int w, int h, int scale, out int outW, out int outH)
