@@ -162,15 +162,21 @@ public partial class OverlayWindow : Window
 
             // прячем свою панель и рамку: прошлый результат не должен попасть в кадр
             await HidePanelForCaptureAsync();
-            if (ScanFrame.Visibility == Visibility.Visible)
+            if (ScanFrame.Visibility == Visibility.Visible || ScanFrame2.Visibility == Visibility.Visible)
             {
-                ScanFrame.BeginAnimation(OpacityProperty, null);
-                ScanFrame.Visibility = Visibility.Collapsed;
+                foreach (var f in new[] { ScanFrame, ScanFrame2 })
+                {
+                    f.BeginAnimation(OpacityProperty, null);
+                    f.Visibility = Visibility.Collapsed;
+                }
                 await Task.Delay(100);
             }
 
-            var result = await Services.HideoutScanner.ScanAsync(data, pt,
-                region => FlashScanRegion(region.X, region.Y, region.W, region.H));
+            // снимков несколько подряд, поэтому подсвечиваем только после всех:
+            // рамка, попавшая в следующий кадр, испортит распознавание
+            var regions = new List<Services.HideoutScanner.Region>();
+            var result = await Services.HideoutScanner.ScanAsync(data, pt, regions.Add);
+            FlashRegions(regions);
 
             if (result.Found.Count == 0)
             {
@@ -179,7 +185,7 @@ public partial class OverlayWindow : Window
                     ShowLines(pt,
                         ($"{string.Join(", ", result.NoLevel.Select(s => s.Name))} — уровень не считался",
                             MutedBrush),
-                        ("Наведите курсор на иконку станции с цифрой уровня", MutedBrush));
+                        (result.Note ?? "Наведите курсор на иконку станции с цифрой уровня", MutedBrush));
                 else
                     ShowLines(pt, ("Станция не распознана", MutedBrush),
                         ($"Наведите курсор на станцию в нижней панели убежища и нажмите " +
@@ -199,7 +205,7 @@ public partial class OverlayWindow : Window
             {
                 var one = result.Found[0];
                 lines.Add(($"{one.Station.Name} — ур. {one.Level}", OkBrush));
-                lines.Add(("Сохранено", HideoutBrush));
+                lines.Add((result.Note ?? "Сохранено", HideoutBrush));
             }
             else
             {
@@ -485,24 +491,38 @@ public partial class OverlayWindow : Window
     /// На полторы секунды подсвечивает пунктирной рамкой область, ушедшую в OCR.
     /// Вызывать строго ПОСЛЕ снимка: рамка, попавшая в кадр, портит распознавание.
     /// </summary>
-    private void FlashScanRegion(int px, int py, int pw, int ph)
+    private void FlashScanRegion(int px, int py, int pw, int ph) =>
+        FlashRegion(ScanFrame, px, py, pw, ph);
+
+    /// <summary>Подсветить сразу несколько снятых областей (сканирование убежища).</summary>
+    private void FlashRegions(IReadOnlyList<Services.HideoutScanner.Region> regions)
+    {
+        // рамок две, показываем последние снятые области
+        var shown = regions.Skip(Math.Max(0, regions.Count - 2)).ToList();
+        if (shown.Count > 0)
+            FlashRegion(ScanFrame, shown[0].X, shown[0].Y, shown[0].W, shown[0].H);
+        if (shown.Count > 1)
+            FlashRegion(ScanFrame2, shown[1].X, shown[1].Y, shown[1].W, shown[1].H);
+    }
+
+    private void FlashRegion(System.Windows.Shapes.Rectangle frame, int px, int py, int pw, int ph)
     {
         // отладочная подсветка, включается в настройках
         if (!App.Services.Settings.ShowScanRegion) return;
 
         var dpi = VisualTreeHelper.GetDpi(this);
-        Canvas.SetLeft(ScanFrame, px / dpi.DpiScaleX - Left);
-        Canvas.SetTop(ScanFrame, py / dpi.DpiScaleY - Top);
-        ScanFrame.Width = pw / dpi.DpiScaleX;
-        ScanFrame.Height = ph / dpi.DpiScaleY;
-        ScanFrame.Visibility = Visibility.Visible;
+        Canvas.SetLeft(frame, px / dpi.DpiScaleX - Left);
+        Canvas.SetTop(frame, py / dpi.DpiScaleY - Top);
+        frame.Width = pw / dpi.DpiScaleX;
+        frame.Height = ph / dpi.DpiScaleY;
+        frame.Visibility = Visibility.Visible;
 
         var anim = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.0, TimeSpan.FromMilliseconds(1500))
         {
             FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop,
         };
-        anim.Completed += (_, _) => ScanFrame.Visibility = Visibility.Collapsed;
-        ScanFrame.BeginAnimation(OpacityProperty, anim);
+        anim.Completed += (_, _) => frame.Visibility = Visibility.Collapsed;
+        frame.BeginAnimation(OpacityProperty, anim);
     }
 
     /// <summary>

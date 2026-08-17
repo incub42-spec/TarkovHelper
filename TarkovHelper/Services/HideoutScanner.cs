@@ -17,8 +17,9 @@ namespace TarkovHelper.Services;
 internal static partial class HideoutScanner
 {
     public sealed record StationLevel(HideoutStation Station, int Level);
-    /// <summary>How — каким способом получен результат, показывается в оверлее.</summary>
-    public sealed record Result(List<StationLevel> Found, List<HideoutStation> NoLevel, string How = "");
+    /// <summary>How — каким способом получен результат, Note — пояснение для оверлея.</summary>
+    public sealed record Result(
+        List<StationLevel> Found, List<HideoutStation> NoLevel, string How = "", string? Note = null);
     /// <summary>Снятая область экрана — оверлей подсвечивает её для отладки.</summary>
     public sealed record Region(int X, int Y, int W, int H);
 
@@ -38,12 +39,14 @@ internal static partial class HideoutScanner
         var r = info.rcMonitor;
         var monitorWidth = r.Right - r.Left;
 
-        // Основной способ — одна станция под курсором. Наводим на её плитку
-        // (иконка с цифрой уровня + название) и жмём хоткей: маленькая область
-        // распознаётся куда надёжнее, чем вся панель разом, а станции набираются
-        // по одной. Остальные проходы — запасные.
+        // Основной способ — две маленькие области вместо всего экрана:
+        // плитка станции под курсором в нижней панели и шапка открытого окна
+        // станции справа сверху. Обе читаются надёжно, а сверка их между собой
+        // страхует от того, что курсор стоит не на той станции.
         var cell = await ScanCellAsync(data, r, cursor, onRegion);
-        if (cell.Found.Count > 0 || cell.NoLevel.Count > 0) return cell;
+        var header = await ScanDetailHeaderAsync(data, r, onRegion);
+        var cross = CrossCheck(cell, header);
+        if (cross != null) return cross;
 
         // Затем вся нижняя панель убежища: там у каждой станции подписаны название
         // и статус — уровень цифрой либо «Заблокировано». Это надёжнее иконок
@@ -73,25 +76,7 @@ internal static partial class HideoutScanner
         }
 
         // совпадения названий станций: лучшее (самое верхнее) вхождение на станцию
-        var nameHits = new Dictionary<string, (HideoutStation St, double X, double Y)>();
-        foreach (var line in lines)
-        {
-            var norm = ItemMatcher.Normalize(line.Text);
-            if (norm.Length < 3) continue;
-            foreach (var s in data.Stations)
-            {
-                foreach (var name in Names(s))
-                {
-                    var nn = ItemMatcher.Normalize(name);
-                    if (nn.Length < 3) continue;
-                    // короткие названия («Тир») — только точное совпадение, иначе ловим подстроки
-                    var hit = norm == nn || (nn.Length >= 5 && norm.Contains(nn));
-                    if (!hit) continue;
-                    if (!nameHits.TryGetValue(s.Id, out var ex) || line.Y < ex.Y)
-                        nameHits[s.Id] = (s, line.X, line.Y);
-                }
-            }
-        }
+        var nameHits = MatchNames(data, lines, monitorWidth * 0.006, monitorWidth * 0.06);
 
         var found = new List<StationLevel>();
         var noLevel = new List<HideoutStation>();
@@ -171,17 +156,48 @@ internal static partial class HideoutScanner
 
         AppendDebug(lines, "ячейка под курсором");
 
-        // координаты курсора внутри снятой области
-        double cx = cursor.X - x, cy = cursor.Y - y;
+        return ParseSingle(data, lines, "плитка под курсором");
+    }
 
-        var names = MatchNames(data, lines);
-        if (names.Count == 0)
-            return new Result(new List<StationLevel>(), new List<HideoutStation>(), "ячейка под курсором");
+    /// <summary>
+    /// Шапка открытого окна станции: справа сверху игра показывает название и
+    /// статус («Заблокировано» либо уровень). Берём только полосу с заголовком —
+    /// ниже идут требования для постройки, где есть чужие названия и цифры.
+    /// </summary>
+    private static async Task<Result> ScanDetailHeaderAsync(
+        GameData data, RECT r, Action<Region>? onRegion)
+    {
+        var width = r.Right - r.Left;
+        var height = r.Bottom - r.Top;
 
-        // если в кадр всё же попало два названия — берём то, что ближе к курсору
-        var pick = names.Values
-            .OrderBy(n => (n.X - cx) * (n.X - cx) + (n.Y - cy) * (n.Y - cy))
-            .First();
+        var x = r.Left + (int)(width * 0.36);
+        var y = r.Top + (int)(height * 0.12);
+        var w = width - (int)(width * 0.36);
+        var h = (int)(height * 0.18);
+
+        var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 3);
+        onRegion?.Invoke(new Region(x, y, w, h));
+
+        AppendDebug(lines, "шапка окна станции");
+
+        return ParseSingle(data, lines, "окно станции");
+    }
+
+    /// <summary>
+    /// Разбор области, в которой заведомо одна станция: название плюс её статус.
+    /// Приоритет: явная надпись «УРОВЕНЬ N», затем «Заблокировано»/«Построить»,
+    /// затем цифровой бейдж на иконке.
+    /// </summary>
+    private static Result ParseSingle(GameData data, List<ScreenOcr.Line> lines, string how)
+    {
+        var none = new Result(new List<StationLevel>(), new List<HideoutStation>(), how);
+
+        var match = MatchInCell(data, lines);
+        if (match.St == null) return none;
+        var st = match.St;
+
+        Result One(int level) => new(
+            new List<StationLevel> { new(st, level) }, new List<HideoutStation>(), how);
 
         var badges = new List<(int Value, double X, double Y)>();
         var locked = false;
@@ -190,15 +206,11 @@ internal static partial class HideoutScanner
             var clean = l.Text.Trim();
             if (LockedRegex().IsMatch(clean)) { locked = true; continue; }
 
-            // явная надпись «УРОВЕНЬ N» в окне станции — она точнее бейджа
             var m = LevelRegex().Match(clean);
             if (m.Success)
             {
                 var val = int.Parse(m.Groups[1].Value);
-                if (val <= MaxLevel(pick.St))
-                    return new Result(
-                        new List<StationLevel> { new(pick.St, val) },
-                        new List<HideoutStation>(), "ячейка под курсором");
+                if (val <= MaxLevel(st)) return One(val);
             }
 
             if (clean.Length > 3) continue;
@@ -208,34 +220,73 @@ internal static partial class HideoutScanner
         }
 
         if (locked || lines.Any(l => NotBuiltRegex().IsMatch(l.Text)))
-            return new Result(
-                new List<StationLevel> { new(pick.St, 0) },
-                new List<HideoutStation>(), "ячейка под курсором");
+            return One(0);
 
-        // область охватывает одну плитку, поэтому подходит любой бейдж в кадре:
-        // берём ближайший к названию с допустимым для станции значением
+        // в кадре одна станция, поэтому подходит любой бейдж с допустимым
+        // значением — берём ближайший к названию
         var best = (Value: 0, Dist: double.MaxValue);
         foreach (var b in badges)
         {
-            if (b.Value > MaxLevel(pick.St)) continue;
-            var d = (b.X - pick.X) * (b.X - pick.X) + (b.Y - pick.Y) * (b.Y - pick.Y);
+            if (b.Value > MaxLevel(st)) continue;
+            var d = (b.X - match.X) * (b.X - match.X) + (b.Y - match.Y) * (b.Y - match.Y);
             if (d < best.Dist) best = (b.Value, d);
         }
+        if (best.Dist < double.MaxValue) return One(best.Value);
 
-        if (best.Dist < double.MaxValue)
-            return new Result(
-                new List<StationLevel> { new(pick.St, best.Value) },
-                new List<HideoutStation>(), "ячейка под курсором");
+        if (MaxLevel(st) == 1) return One(1); // одноуровневая и не заблокирована
 
-        if (MaxLevel(pick.St) == 1) // одноуровневая станция и не заблокирована
+        return new Result(new List<StationLevel>(), new List<HideoutStation> { st }, how);
+    }
+
+    /// <summary>
+    /// Сверка двух областей. Если и плитка под курсором, и шапка окна дали одну
+    /// и ту же станцию — результат подтверждён. Если станции разные, ничего не
+    /// сохраняем: скорее всего курсор стоит не на той плитке, о чём и сообщаем.
+    /// null — ни одна область станцию не узнала, дальше идут запасные проходы.
+    /// </summary>
+    private static Result? CrossCheck(Result cell, Result header)
+    {
+        var cellSt = Single(cell);
+        var headSt = Single(header);
+
+        if (cellSt == null && headSt == null) return null;
+
+        if (cellSt != null && headSt != null && cellSt.Id != headSt.Id)
             return new Result(
-                new List<StationLevel> { new(pick.St, 1) },
-                new List<HideoutStation>(), "ячейка под курсором");
+                new List<StationLevel>(),
+                new List<HideoutStation> { cellSt, headSt },
+                "сверка",
+                $"Под курсором «{cellSt.Name}», а открыто окно «{headSt.Name}». " +
+                "Наведите курсор на плитку той же станции.");
+
+        // уровень берём из окна станции: там он подписан текстом, а не бейджем
+        var level = header.Found.FirstOrDefault() ?? cell.Found.FirstOrDefault();
+        if (level == null)
+            return new Result(
+                new List<StationLevel>(),
+                new List<HideoutStation> { (cellSt ?? headSt)! },
+                "сверка");
+
+        if (cellSt != null && headSt != null)
+        {
+            var other = header.Found.Count > 0 ? cell.Found.FirstOrDefault() : header.Found.FirstOrDefault();
+            var note = other != null && other.Level != level.Level
+                ? $"Плитка и окно показали разный уровень ({cell.Found.FirstOrDefault()?.Level} и " +
+                  $"{header.Found.FirstOrDefault()?.Level}) — сохранён из окна станции."
+                : "Подтверждено плиткой и окном станции.";
+            return new Result(new List<StationLevel> { level }, new List<HideoutStation>(), "сверка", note);
+        }
 
         return new Result(
-            new List<StationLevel>(),
-            new List<HideoutStation> { pick.St }, "ячейка под курсором");
+            new List<StationLevel> { level }, new List<HideoutStation>(),
+            cellSt != null ? "плитка под курсором" : "окно станции",
+            cellSt != null ? "Окно станции не распозналось — уровень взят с плитки."
+                           : "Плитка под курсором не распозналась — уровень взят из окна.");
     }
+
+    /// <summary>Единственная станция из результата области, если она там есть.</summary>
+    private static HideoutStation? Single(Result r) =>
+        r.Found.FirstOrDefault()?.Station ?? r.NoLevel.FirstOrDefault();
 
     /// <summary>
     /// Разбор нижней панели убежища. У каждой станции там: иконка с цифрой
@@ -277,7 +328,7 @@ internal static partial class HideoutScanner
         var noLevel = new List<HideoutStation>();
         var cell = width * 0.075; // ширина ячейки станции в панели
 
-        foreach (var (st, x, y) in MatchNames(data, lines).Values)
+        foreach (var (st, x, y) in MatchNames(data, lines, height * 0.012, cell).Values)
         {
             // «Заблокировано» пишется прямо под названием, с тем же левым краем
             var locked = locks.Any(p => Math.Abs(p.X - x) <= cell && p.Y > y && p.Y - y < height * 0.05);
@@ -310,29 +361,112 @@ internal static partial class HideoutScanner
         return new Result(found, noLevel, "нижняя панель");
     }
 
-    /// <summary>Названия станций среди распознанных строк: станция -> позиция.</summary>
+    /// <summary>
+    /// Названия станций среди распознанных строк: станция -> позиция.
+    /// Длинные названия OCR разбивает на соседние строки («Воздушный» и
+    /// «Фильтратор» рядом в одной ячейке), поэтому каждую строку пробуем ещё и
+    /// склеенной с соседями справа: joinDy — допуск по высоте, joinDx — по ширине.
+    /// </summary>
     private static Dictionary<string, (HideoutStation St, double X, double Y)> MatchNames(
-        GameData data, List<ScreenOcr.Line> lines)
+        GameData data, List<ScreenOcr.Line> lines, double joinDy, double joinDx)
     {
-        var hits = new Dictionary<string, (HideoutStation St, double X, double Y)>();
+        var hits = new Dictionary<string, (HideoutStation St, double X, double Y, int Score)>();
         foreach (var line in lines)
         {
-            var norm = ItemMatcher.Normalize(line.Text);
-            if (norm.Length < 3) continue;
-            foreach (var s in data.Stations)
+            var variants = new List<string> { line.Text };
+            foreach (var other in lines)
             {
-                foreach (var name in Names(s))
+                if (ReferenceEquals(other, line)) continue;
+                var dx = other.X - line.X;
+                if (dx <= 0 || dx > joinDx || Math.Abs(other.Y - line.Y) > joinDy) continue;
+                variants.Add(line.Text + " " + other.Text);
+            }
+
+            foreach (var v in variants)
+            {
+                var norm = ItemMatcher.Normalize(v);
+                if (norm.Length < 3) continue;
+                foreach (var s in data.Stations)
                 {
-                    var nn = ItemMatcher.Normalize(name);
-                    if (nn.Length < 3) continue;
-                    var hit = norm == nn || (nn.Length >= 5 && norm.Contains(nn));
-                    if (!hit) continue;
-                    if (!hits.TryGetValue(s.Id, out var ex) || line.Y < ex.Y)
-                        hits[s.Id] = (s, line.X, line.Y);
+                    var score = Names(s).Max(n => NameScore(norm, n));
+                    if (score == 0) continue;
+                    // на станцию берём самое верхнее вхождение, при равенстве — самое полное
+                    if (!hits.TryGetValue(s.Id, out var ex) || score > ex.Score ||
+                        (score == ex.Score && line.Y < ex.Y))
+                        hits[s.Id] = (s, line.X, line.Y, score);
                 }
             }
         }
-        return hits;
+        return hits.ToDictionary(kv => kv.Key, kv => (kv.Value.St, kv.Value.X, kv.Value.Y));
+    }
+
+    /// <summary>
+    /// Насколько распознанный текст похож на название станции: сколько слов
+    /// названия в нём нашлось (0 — не подходит). Слова сравниваются как множество
+    /// и с поправкой на склонения: в игре «Биткоин ферма», у нас «Ферма биткоинов».
+    /// </summary>
+    private static int NameScore(string ocrNorm, string? name)
+    {
+        var words = ItemMatcher.Normalize(name)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length >= 3)
+            .ToArray();
+        if (words.Length == 0) return 0;
+
+        var ocrWords = ocrNorm.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // односложные названия («Тир», «Генератор») — только точное слово,
+        // иначе цепляем куски чужих строк
+        if (words.Length == 1)
+            return ocrWords.Contains(words[0]) ? 1 : 0;
+
+        foreach (var w in words)
+            if (!ocrWords.Any(o => WordMatches(o, w)))
+                return 0;
+        return words.Length;
+    }
+
+    /// <summary>Слова одного корня: «биткоинов» = «биткоин», «воздуха» = «воздушный».</summary>
+    private static bool WordMatches(string a, string b)
+    {
+        if (a == b) return true;
+        var common = 0;
+        while (common < a.Length && common < b.Length && a[common] == b[common]) common++;
+        var shorter = Math.Min(a.Length, b.Length);
+        return common >= 5 && common * 10 >= shorter * 6;
+    }
+
+    /// <summary>
+    /// Станция в кадре одной ячейки. Здесь текст можно склеивать целиком: в области
+    /// заведомо одна плитка, поэтому разрыв названия на строки не мешает.
+    /// Возвращает станцию и точку названия (от неё ищем цифру уровня).
+    /// </summary>
+    private static (HideoutStation? St, double X, double Y) MatchInCell(
+        GameData data, List<ScreenOcr.Line> lines)
+    {
+        var blob = ItemMatcher.Normalize(string.Join(" ", lines.Select(l => l.Text)));
+        if (blob.Length < 3) return (null, 0, 0);
+
+        HideoutStation? best = null;
+        var bestScore = 0;
+        foreach (var s in data.Stations)
+        {
+            var score = Names(s).Max(n => NameScore(blob, n));
+            if (score > bestScore) { bestScore = score; best = s; }
+        }
+        if (best == null) return (null, 0, 0);
+
+        // якорь — первая строка, в которой встретилось слово из названия
+        foreach (var line in lines)
+        {
+            var norm = ItemMatcher.Normalize(line.Text);
+            if (Names(best).Any(n => NameScore(norm, n) > 0) ||
+                Names(best).Any(n => ItemMatcher.Normalize(n)
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Any(w => w.Length >= 3 && norm.Split(' ').Any(o => WordMatches(o, w)))))
+                return (best, line.X, line.Y);
+        }
+        return (best, lines[0].X, lines[0].Y);
     }
 
     [GeneratedRegex(@"(?i)заблокир|locked")]

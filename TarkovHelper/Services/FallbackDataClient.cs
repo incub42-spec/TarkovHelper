@@ -52,13 +52,14 @@ public static class FallbackDataClient
     {
         ["vents"] = ("Вентиляция", Array.Empty<string>()),
         ["security"] = ("Безопасность", new[] { "Охрана", "Пост охраны" }),
-        ["lavatory"] = ("Санузел", Array.Empty<string>()),
+        ["lavatory"] = ("Санузел", new[] { "Уборная", "Туалет" }),
+        ["defective-wall"] = ("Стена", new[] { "Разрушенная стена", "Дефектная стена" }),
         ["stash"] = ("Склад", new[] { "Схрон" }),
         ["generator"] = ("Генератор", Array.Empty<string>()),
         ["heating"] = ("Отопление", new[] { "Обогрев" }),
         ["water-collector"] = ("Водосборник", new[] { "Сборщик воды" }),
         ["medstation"] = ("Медблок", new[] { "Медицинский блок" }),
-        ["nutrition-unit"] = ("Пищеблок", Array.Empty<string>()),
+        ["nutrition-unit"] = ("Пищеблок", new[] { "Кухня", "Столовая" }),
         ["rest-space"] = ("Зона отдыха", new[] { "Место отдыха" }),
         ["workbench"] = ("Верстак", Array.Empty<string>()),
         ["intelligence-center"] = ("Разведцентр", new[] { "Разведывательный центр" }),
@@ -67,12 +68,14 @@ public static class FallbackDataClient
         ["scav-case"] = ("Ящик диких", new[] { "Посылка от диких", "Кейс диких" }),
         ["illumination"] = ("Освещение", Array.Empty<string>()),
         ["hall-of-fame"] = ("Уголок боевой славы", new[] { "Зал славы", "Доска почёта" }),
-        ["air-filtering-unit"] = ("Установка фильтрации воздуха", new[] { "Фильтрация воздуха" }),
-        ["solar-power"] = ("Солнечная электростанция", new[] { "Солнечная батарея" }),
+        ["air-filtering-unit"] = ("Воздушный фильтратор",
+            new[] { "Установка фильтрации воздуха", "Фильтрация воздуха" }),
+        ["solar-power"] = ("Солнечная батарея", new[] { "Солнечная электростанция" }),
         ["booze-generator"] = ("Самогонный аппарат", Array.Empty<string>()),
-        ["bitcoin-farm"] = ("Ферма биткоинов", new[] { "Ферма биткойнов" }),
+        ["bitcoin-farm"] = ("Биткоин ферма",
+            new[] { "Ферма биткоинов", "Ферма биткойнов", "Биткойн ферма" }),
         ["christmas-tree"] = ("Новогодняя ёлка", new[] { "Ёлка" }),
-        ["weapon-rack"] = ("Оружейная стойка", new[] { "Стойка для оружия" }),
+        ["weapon-rack"] = ("Оружейный стенд", new[] { "Оружейная стойка", "Стойка для оружия" }),
         ["gear-rack"] = ("Стенд со снаряжением", new[] { "Стойка для снаряжения", "Стойка снаряжения" }),
         ["cultist-circle"] = ("Круг сектантов", new[] { "Круг культистов" }),
         ["gym"] = ("Тренажёрный зал", new[] { "Спортзал" }),
@@ -382,6 +385,25 @@ public static class FallbackDataClient
         locale.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString()
             : null;
+
+    /// <summary>
+    /// Проставляет станциям русские названия из таблицы выше. Нужно для кеша,
+    /// собранного прошлой версией: если название расходится с игрой («Ферма
+    /// биткоинов» вместо «Биткоин ферма»), OCR убежища станцию не узнаёт.
+    /// Ключ таблицы восстанавливаем из английского названия — оно из него и сделано.
+    /// </summary>
+    public static void ApplyStationNames(GameData data)
+    {
+        foreach (var s in data.Stations)
+        {
+            var key = StationsRu.Keys.FirstOrDefault(k =>
+                string.Equals(Humanize(k), s.NameEn, StringComparison.OrdinalIgnoreCase));
+            if (key == null) continue;
+            var ru = StationsRu[key];
+            s.Name = ru.Name;
+            s.Aliases = ru.Aliases.ToList();
+        }
+    }
 
     private static string Humanize(string normalized) =>
         normalized.Length == 0

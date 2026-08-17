@@ -97,6 +97,8 @@ public sealed class AppServices
 
     private void AfterDataLoaded()
     {
+        // кеш мог быть собран прошлой версией с другими названиями станций
+        FallbackDataClient.ApplyStationNames(Data!);
         Matcher = new ItemMatcher(Data!);
         RebuildIndex();
         RestartWatcher();

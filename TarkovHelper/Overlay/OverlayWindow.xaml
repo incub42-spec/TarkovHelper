@@ -16,6 +16,13 @@
                    StrokeThickness="2"
                    StrokeDashArray="6 3"
                    Fill="#14FFC94D"/>
+        <!-- вторая рамка: убежище снимает две области сразу (плитка и окно станции) -->
+        <Rectangle x:Name="ScanFrame2"
+                   Visibility="Collapsed"
+                   Stroke="#CC7FD4FF"
+                   StrokeThickness="2"
+                   StrokeDashArray="6 3"
+                   Fill="#147FD4FF"/>
         <Border x:Name="Panel"
                 Visibility="Collapsed"
                 Background="#E6101418"
