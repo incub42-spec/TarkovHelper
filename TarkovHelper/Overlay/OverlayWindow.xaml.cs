@@ -29,6 +29,11 @@ public partial class OverlayWindow : Window
     private static readonly Brush FailBrush = new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50));
 
     private readonly DispatcherTimer _hideTimer;
+    /// <summary>Опрос курсора: подсказка убирается наведением на неё.</summary>
+    private readonly DispatcherTimer _dismissTimer;
+    private DateTime _shownAt;
+    /// <summary>Сколько подсказка держится, не реагируя на мышь (мс).</summary>
+    private const int GraceMs = 400;
     private bool _scanning;
 
     public static bool HotkeyRegistered { get; private set; }
@@ -47,11 +52,10 @@ public partial class OverlayWindow : Window
         Height = SystemParameters.VirtualScreenHeight;
 
         _hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-        _hideTimer.Tick += (_, _) =>
-        {
-            _hideTimer.Stop();
-            Panel.Visibility = Visibility.Collapsed;
-        };
+        _hideTimer.Tick += (_, _) => HidePanel();
+
+        _dismissTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _dismissTimer.Tick += (_, _) => DismissIfCursorOverPanel();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -547,6 +551,16 @@ public partial class OverlayWindow : Window
         if (data.header.dwType != RIM_TYPEMOUSE) return;
 
         var flags = data.mouse.usButtonFlags;
+
+        // Любой клик убирает подсказку: ждать шесть секунд, пока она пропадёт
+        // сама, неудобно. Клавиша сканирования сработает ниже и покажет новую.
+        if ((flags & RI_MOUSE_ANY_BUTTON_DOWN) != 0 &&
+            Panel.Visibility == Visibility.Visible &&
+            (DateTime.UtcNow - _shownAt).TotalMilliseconds >= GraceMs)
+        {
+            Dispatcher.BeginInvoke(new Action(HidePanel));
+        }
+
         uint pressed = 0;
         if ((flags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0) pressed = VK_MBUTTON;
         else if ((flags & RI_MOUSE_BUTTON_4_DOWN) != 0) pressed = VK_XBUTTON1;
@@ -562,8 +576,7 @@ public partial class OverlayWindow : Window
     private async Task HidePanelForCaptureAsync()
     {
         if (Panel.Visibility != Visibility.Visible) return;
-        _hideTimer.Stop();
-        Panel.Visibility = Visibility.Collapsed;
+        HidePanel();
         await Task.Delay(120);
     }
 
@@ -595,8 +608,43 @@ public partial class OverlayWindow : Window
         Canvas.SetLeft(Panel, Math.Max(0, x));
         Canvas.SetTop(Panel, Math.Max(0, y));
 
+        _shownAt = DateTime.UtcNow;
         _hideTimer.Stop();
         _hideTimer.Start();
+        _dismissTimer.Start();
+    }
+
+    /// <summary>Убирает подсказку и останавливает оба таймера.</summary>
+    private void HidePanel()
+    {
+        _hideTimer.Stop();
+        _dismissTimer.Stop();
+        Panel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Подсказка убирается наведением курсора: панель click-through, поймать
+    /// мышь событиями окна нельзя, поэтому сравниваем позицию курсора с её
+    /// прямоугольником. Небольшая пауза после показа — чтобы подсказка не
+    /// пропала мгновенно, если она выехала прямо под курсор.
+    /// </summary>
+    private void DismissIfCursorOverPanel()
+    {
+        if (Panel.Visibility != Visibility.Visible) return;
+        if ((DateTime.UtcNow - _shownAt).TotalMilliseconds < GraceMs) return;
+
+        GetCursorPos(out var pt);
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var cx = pt.X / dpi.DpiScaleX - Left;
+        var cy = pt.Y / dpi.DpiScaleY - Top;
+
+        var px = Canvas.GetLeft(Panel);
+        var py = Canvas.GetTop(Panel);
+        if (cx >= px && cx <= px + Panel.ActualWidth &&
+            cy >= py && cy <= py + Panel.ActualHeight)
+        {
+            HidePanel();
+        }
     }
 
     private static (int X, int Y, int W, int H) ClampToVirtualScreen(int x, int y, int w, int h)

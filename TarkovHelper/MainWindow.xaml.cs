@@ -424,6 +424,37 @@ public partial class MainWindow : Window
         if (IsLoaded) ApplyQuestFilter();
     }
 
+    /// <summary>
+    /// Своё название квеста. Нужно для квестов, которых ещё нет ни в локалях,
+    /// ни на русской вики: их название видно только в самой игре, а придумывать
+    /// перевод за игрока нельзя. Название хранится в профиле и переживает
+    /// обновление базы.
+    /// </summary>
+    private void OnRenameQuestClick(object sender, RoutedEventArgs e)
+    {
+        if (QuestsList.SelectedItem is not QuestRow row) return;
+
+        var dlg = new ProfileDialog
+        {
+            Owner = this,
+            Title = "Название квеста",
+            Prompt = $"Название квеста ({row.Trader}), как в игре:",
+            ModeEditable = false,
+            ProfileName = row.Name,
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var p = App.Services.Progress;
+        if (string.Equals(dlg.ProfileName, row.Quest.Name, StringComparison.Ordinal))
+            p.QuestNames.Remove(row.Quest.Id); // вернули как в базе — своё имя не нужно
+        else
+            p.QuestNames[row.Quest.Id] = dlg.ProfileName;
+
+        App.Services.SaveProgress();
+        App.Services.RebuildIndex(); // название видно и в подсказке оверлея
+        RebuildQuestRows();
+    }
+
     // ---------- вкладка «Убежище» ----------
 
     private void RebuildStationRows()
@@ -549,7 +580,8 @@ public partial class MainWindow : Window
         public QuestRow(Quest quest) => _quest = quest;
 
         public string Trader => _quest.TraderName;
-        public string Name => _quest.Name;
+        public Quest Quest => _quest;
+        public string Name => App.Services.Progress.NameOf(_quest);
         /// <summary>«USEC»/«BEAR» у квестов своей фракции, пусто у общих.</summary>
         public string Faction => _quest.Faction;
         public string Level => _quest.MinPlayerLevel > 0 ? _quest.MinPlayerLevel.ToString() : "";

@@ -29,6 +29,13 @@ public sealed class Progress
     /// <summary>Когда квест отмечен выполненным (UTC).</summary>
     public Dictionary<string, DateTime> QuestCheckedUtc { get; set; } = new();
 
+    /// <summary>
+    /// Свои названия квестов: ид -> название. Нужны для квестов, которых ещё нет
+    /// ни в локалях, ни на русской вики — их название взять неоткуда, кроме как
+    /// из самой игры. Хранятся в профиле и переживают обновление базы.
+    /// </summary>
+    public Dictionary<string, string> QuestNames { get; set; } = new();
+
     public string ModeName => PveMode ? "PvE" : "PvP";
 
     /// <summary>
@@ -36,6 +43,12 @@ public sealed class Progress
     /// поэтому его не показываем и лут для него не собираем. Пока фракция не
     /// выбрана, показываем всё — иначе молча спрячем половину списка.
     /// </summary>
+    /// <summary>Название квеста с учётом ручного переименования.</summary>
+    public string NameOf(Quest quest) =>
+        QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0
+            ? custom
+            : quest.Name;
+
     public bool Fits(string questFaction) =>
         questFaction.Length == 0 || Faction.Length == 0 ||
         string.Equals(questFaction, Faction, StringComparison.OrdinalIgnoreCase);

@@ -56,9 +56,15 @@ internal static class NativeMethods
     public const uint RIDEV_INPUTSINK = 0x00000100;
     public const uint RIM_TYPEMOUSE = 0;
 
+    public const ushort RI_MOUSE_LEFT_BUTTON_DOWN = 0x0001;
+    public const ushort RI_MOUSE_RIGHT_BUTTON_DOWN = 0x0004;
     public const ushort RI_MOUSE_MIDDLE_BUTTON_DOWN = 0x0010;
     public const ushort RI_MOUSE_BUTTON_4_DOWN = 0x0040;
     public const ushort RI_MOUSE_BUTTON_5_DOWN = 0x0100;
+    /// <summary>Любая кнопка мыши нажата — по этому событию убирается подсказка.</summary>
+    public const ushort RI_MOUSE_ANY_BUTTON_DOWN =
+        RI_MOUSE_LEFT_BUTTON_DOWN | RI_MOUSE_RIGHT_BUTTON_DOWN | RI_MOUSE_MIDDLE_BUTTON_DOWN |
+        RI_MOUSE_BUTTON_4_DOWN | RI_MOUSE_BUTTON_5_DOWN;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RAWINPUTDEVICE

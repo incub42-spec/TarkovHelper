@@ -40,7 +40,7 @@ public sealed class NeededItemsIndex
                     Add(itemId, new Need
                     {
                         Kind = NeedKind.Quest,
-                        Source = $"{quest.TraderName}: {quest.Name}",
+                        Source = $"{quest.TraderName}: {progress.NameOf(quest)}",
                         Count = obj.Count,
                         FoundInRaid = obj.FoundInRaid,
                     });

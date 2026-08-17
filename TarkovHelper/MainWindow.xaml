@@ -80,6 +80,11 @@
                              ToolTip="Поиск по названию квеста или торговцу"/>
                 </DockPanel>
                 <ListView x:Name="QuestsList">
+                    <ListView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Переименовать квест…" Click="OnRenameQuestClick"/>
+                        </ContextMenu>
+                    </ListView.ContextMenu>
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Выполнен" Width="80">
