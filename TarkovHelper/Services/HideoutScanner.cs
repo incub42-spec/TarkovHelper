@@ -81,24 +81,10 @@ internal static partial class HideoutScanner
         var found = new List<StationLevel>();
         var noLevel = new List<HideoutStation>();
 
-        // окно одной станции: явная надпись «УРОВЕНЬ N» или кнопка «Построить»
-        if (nameHits.Count == 1)
-        {
-            var only = nameHits.Values.First();
-            foreach (var line in lines)
-            {
-                var m = LevelRegex().Match(line.Text);
-                if (!m.Success) continue;
-                var val = int.Parse(m.Groups[1].Value);
-                if (val <= MaxLevel(only.St))
-                {
-                    found.Add(new StationLevel(only.St, val));
-                    break;
-                }
-            }
-            if (found.Count == 0 && lines.Any(l => NotBuiltRegex().IsMatch(l.Text)))
-                found.Add(new StationLevel(only.St, 0));
-        }
+        // окно одной станции: непостроенная подписана «Построить»/«Заблокировано»
+        if (nameHits.Count == 1 &&
+            lines.Any(l => NotBuiltRegex().IsMatch(l.Text) || LockedRegex().IsMatch(l.Text)))
+            found.Add(new StationLevel(nameHits.Values.First().St, 0));
 
         // Общий вид: бейдж станции всегда чуть левее и ниже начала её названия
         // (низ иконки; в нижней панели и у подписей на карте смещение одинаковое,
@@ -257,18 +243,13 @@ internal static partial class HideoutScanner
 
         var badges = new List<(int Value, double X, double Y)>();
         var locked = false;
-        int? levelText = null;
         foreach (var l in near)
         {
             var clean = l.Text.Trim();
             if (LockedRegex().IsMatch(clean)) { locked = true; continue; }
 
-            var m = LevelRegex().Match(clean);
-            if (m.Success)
-            {
-                var val = int.Parse(m.Groups[1].Value);
-                if (val <= MaxLevel(st)) levelText ??= val;
-            }
+            // «УРОВЕНЬ N» внизу окна станции не читаем: это вкладка следующего
+            // уровня, а не построенного (у станции с цифрой 02 там написано 3)
 
             if (clean.Length > 3) continue;
             var digits = new string(clean.Where(char.IsDigit).ToArray());
@@ -297,8 +278,6 @@ internal static partial class HideoutScanner
             var badge = await readBadge(match.X, match.Y, MaxLevel(st));
             if (badge != null) return One(badge.Value);
         }
-
-        if (levelText != null) return One(levelText.Value);
 
         if (MaxLevel(st) == 1) return One(1); // одноуровневая и не заблокирована
 
