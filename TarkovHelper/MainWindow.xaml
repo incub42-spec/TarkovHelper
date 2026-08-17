@@ -121,6 +121,16 @@
                           Content="Подсвечивать область сканирования (отладка OCR)"
                           Checked="OnScanRegionChanged" Unchecked="OnScanRegionChanged"/>
 
+                <TextBlock Text="Обновление" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                <TextBlock x:Name="TxtUpdateStatus" TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button x:Name="BtnCheckUpdate" Width="180" Content="Проверить обновления"
+                            Click="OnCheckUpdateClick"/>
+                    <Button x:Name="BtnInstallUpdate" Width="200" Margin="8,0,0,0"
+                            Content="Обновить и перезапустить" Visibility="Collapsed"
+                            Click="OnInstallUpdateClick"/>
+                </StackPanel>
+
                 <TextBlock Text="Горячие клавиши" FontWeight="SemiBold" Margin="0,16,0,4"/>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                     <TextBlock Text="Предмет под курсором:" Width="180" VerticalAlignment="Center"/>

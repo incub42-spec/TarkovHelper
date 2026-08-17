@@ -98,6 +98,80 @@ public partial class MainWindow : Window
         App.Services.SaveProgress();
     }
 
+    // ---------- обновление приложения ----------
+
+    private UpdateService.Available? _update;
+
+    /// <summary>Тихая проверка обновлений при запуске: молчит, если всё актуально.</summary>
+    public async Task CheckUpdateOnStartupAsync()
+    {
+        try
+        {
+            _update = await UpdateService.CheckAsync();
+            ShowUpdateState(_update == null
+                ? $"Версия {UpdateService.CurrentVersion.ToString(3)} — последняя."
+                : $"Доступна версия {_update.Version.ToString(3)} " +
+                  $"(у вас {UpdateService.CurrentVersion.ToString(3)}).");
+        }
+        catch (Exception ex)
+        {
+            ShowUpdateState($"Версия {UpdateService.CurrentVersion.ToString(3)}. " +
+                            $"Проверить обновления не удалось: {ex.Message}");
+        }
+    }
+
+    private void ShowUpdateState(string status)
+    {
+        TxtUpdateStatus.Text = status;
+        BtnInstallUpdate.Visibility = _update == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private async void OnCheckUpdateClick(object sender, RoutedEventArgs e)
+    {
+        BtnCheckUpdate.IsEnabled = false;
+        TxtUpdateStatus.Text = "Проверяю…";
+        try
+        {
+            await CheckUpdateOnStartupAsync();
+        }
+        finally
+        {
+            BtnCheckUpdate.IsEnabled = true;
+        }
+    }
+
+    private async void OnInstallUpdateClick(object sender, RoutedEventArgs e)
+    {
+        if (_update == null) return;
+
+        var answer = MessageBox.Show(this,
+            $"Скачать версию {_update.Version.ToString(3)} и перезапустить приложение?\n\n" +
+            "Загрузка занимает около 75 МБ. Прогресс и настройки сохранятся.",
+            "Обновление", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.OK) return;
+
+        BtnInstallUpdate.IsEnabled = false;
+        BtnCheckUpdate.IsEnabled = false;
+        var progress = new Progress<double>(p =>
+            TxtUpdateStatus.Text = $"Скачиваю обновление… {p:P0}");
+
+        try
+        {
+            await UpdateService.DownloadAndApplyAsync(_update, progress);
+            Application.Current.Shutdown(); // новая версия уже запускается
+        }
+        catch (Exception ex)
+        {
+            TxtUpdateStatus.Text = "Не удалось обновиться: " + ex.Message;
+            BtnInstallUpdate.IsEnabled = true;
+            BtnCheckUpdate.IsEnabled = true;
+            MessageBox.Show(this,
+                "Не удалось обновиться:\n" + ex.Message +
+                "\n\nСкачайте новую версию вручную со страницы релизов на GitHub.",
+                "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void OnItemHotkeyClick(object sender, RoutedEventArgs e) =>
         CaptureHotkey(BtnItemHotkey, isItem: true);
 

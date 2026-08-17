@@ -40,11 +40,15 @@ public partial class App : Application
             args.SetObserved();
         };
 
+        UpdateService.CleanupOldFiles();
         Services.Init();
 
         var main = new MainWindow();
         MainWindow = main;
         main.Show();
+
+        // проверка обновлений при каждом запуске, молча и в фоне
+        _ = main.CheckUpdateOnStartupAsync();
 
         var overlay = new OverlayWindow();
         overlay.Show();
