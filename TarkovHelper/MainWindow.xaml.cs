@@ -501,14 +501,28 @@ public partial class MainWindow : Window
             get => App.Services.Progress.CompletedQuests.Contains(_quest.Id);
             set
             {
+                var p = App.Services.Progress;
                 if (value)
-                    App.Services.Progress.CompletedQuests.Add(_quest.Id);
+                {
+                    p.CompletedQuests.Add(_quest.Id);
+                    p.QuestCheckedUtc[_quest.Id] = DateTime.UtcNow;
+                }
                 else
-                    App.Services.Progress.CompletedQuests.Remove(_quest.Id);
+                {
+                    p.CompletedQuests.Remove(_quest.Id);
+                    p.QuestCheckedUtc.Remove(_quest.Id);
+                }
                 App.Services.SaveProgress();
             }
         }
+
+        /// <summary>Когда отмечен выполненным — чтобы видеть свежесть данных.</summary>
+        public string CheckedAt => FormatChecked(App.Services.Progress.QuestCheckedUtc, _quest.Id);
     }
+
+    /// <summary>«17.08 15:42» для недавних отметок, «—» если отметки не было.</summary>
+    private static string FormatChecked(Dictionary<string, DateTime> map, string id) =>
+        map.TryGetValue(id, out var utc) ? utc.ToLocalTime().ToString("dd.MM HH:mm") : "";
 
     private sealed class StationRow
     {
@@ -531,7 +545,18 @@ public partial class MainWindow : Window
             set
             {
                 App.Services.Progress.HideoutLevels[_station.Id] = value;
+                App.Services.Progress.HideoutCheckedUtc[_station.Id] = DateTime.UtcNow;
                 App.Services.SaveProgress();
+            }
+        }
+
+        /// <summary>Когда уровень подтверждён сканом или вручную.</summary>
+        public string CheckedAt
+        {
+            get
+            {
+                var at = FormatChecked(App.Services.Progress.HideoutCheckedUtc, _station.Id);
+                return at.Length == 0 ? "не проверялось" : "проверено " + at;
             }
         }
     }

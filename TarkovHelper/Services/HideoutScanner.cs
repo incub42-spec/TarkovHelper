@@ -18,6 +18,8 @@ internal static partial class HideoutScanner
 {
     public sealed record StationLevel(HideoutStation Station, int Level);
     public sealed record Result(List<StationLevel> Found, List<HideoutStation> NoLevel);
+    /// <summary>Снятая область экрана — оверлей подсвечивает её для отладки.</summary>
+    public sealed record Region(int X, int Y, int W, int H);
 
     [GeneratedRegex(@"(?i)(?:УРОВЕНЬ|УРОВ|УР|LEVEL|LVL)\W{0,4}(\d{1,2})")]
     private static partial Regex LevelRegex();
@@ -25,7 +27,8 @@ internal static partial class HideoutScanner
     [GeneratedRegex(@"(?i)ПОСТРОИТЬ|НЕ ПОСТРОЕНО|CONSTRUCT|NOT BUILT")]
     private static partial Regex NotBuiltRegex();
 
-    public static async Task<Result> ScanAsync(GameData data, POINT cursor)
+    public static async Task<Result> ScanAsync(
+        GameData data, POINT cursor, Action<Region>? onRegion = null)
     {
         // сканируем монитор, на котором курсор
         var monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
@@ -37,8 +40,10 @@ internal static partial class HideoutScanner
         // Сначала нижняя панель убежища: там у каждой станции подписаны название
         // и статус — уровень цифрой либо «Заблокировано». Это надёжнее иконок
         // на карте; панель прокручивается, поэтому сканировать можно частями.
-        var panel = await ScanBottomPanelAsync(data, r);
+        var panel = await ScanBottomPanelAsync(data, r, onRegion);
         if (panel.Found.Count > 0) return panel;
+
+        onRegion?.Invoke(new Region(r.Left, r.Top, monitorWidth, r.Bottom - r.Top));
 
         // масштаб 3 — мелкие цифровые бейджи читаются надёжнее
         var lines = await ScreenOcr.RecognizeLayoutAsync(
@@ -141,7 +146,8 @@ internal static partial class HideoutScanner
     /// Станции без уровней (Круг сектантов, Тренажёрный зал) считаются
     /// построенными, если рядом нет «Заблокировано».
     /// </summary>
-    private static async Task<Result> ScanBottomPanelAsync(GameData data, RECT r)
+    private static async Task<Result> ScanBottomPanelAsync(
+        GameData data, RECT r, Action<Region>? onRegion)
     {
         var width = r.Right - r.Left;
         var height = r.Bottom - r.Top;
@@ -150,6 +156,7 @@ internal static partial class HideoutScanner
         var top = r.Top + (int)(height * 0.855);
         var stripHeight = (int)(height * 0.115);
         var lines = await ScreenOcr.RecognizeLayoutAsync(r.Left, top, width, stripHeight, scaleHint: 3);
+        onRegion?.Invoke(new Region(r.Left, top, width, stripHeight));
 
         AppendDebug(lines, "нижняя панель");
 

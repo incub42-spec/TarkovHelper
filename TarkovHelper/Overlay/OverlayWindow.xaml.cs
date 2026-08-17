@@ -160,9 +160,17 @@ public partial class OverlayWindow : Window
                 return;
             }
 
-            // прячем свою панель: прошлый результат не должен попасть в кадр
+            // прячем свою панель и рамку: прошлый результат не должен попасть в кадр
             await HidePanelForCaptureAsync();
-            var result = await Services.HideoutScanner.ScanAsync(data, pt);
+            if (ScanFrame.Visibility == Visibility.Visible)
+            {
+                ScanFrame.BeginAnimation(OpacityProperty, null);
+                ScanFrame.Visibility = Visibility.Collapsed;
+                await Task.Delay(100);
+            }
+
+            var result = await Services.HideoutScanner.ScanAsync(data, pt,
+                region => FlashScanRegion(region.X, region.Y, region.W, region.H));
 
             if (result.Found.Count == 0)
             {
@@ -173,7 +181,10 @@ public partial class OverlayWindow : Window
             }
 
             foreach (var f in result.Found)
+            {
                 App.Services.Progress.HideoutLevels[f.Station.Id] = f.Level;
+                App.Services.Progress.HideoutCheckedUtc[f.Station.Id] = DateTime.UtcNow;
+            }
             App.Services.SaveProgress();
 
             var lines = new List<(string, System.Windows.Media.Brush)>

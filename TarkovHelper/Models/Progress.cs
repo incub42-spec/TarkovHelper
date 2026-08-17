@@ -14,6 +14,11 @@ public sealed class Progress
     /// <summary>Ид станции убежища -> построенный уровень (0 = не построено).</summary>
     public Dictionary<string, int> HideoutLevels { get; set; } = new();
 
+    /// <summary>Когда уровень станции подтверждён сканом или вручную (UTC).</summary>
+    public Dictionary<string, DateTime> HideoutCheckedUtc { get; set; } = new();
+    /// <summary>Когда квест отмечен выполненным (UTC).</summary>
+    public Dictionary<string, DateTime> QuestCheckedUtc { get; set; } = new();
+
     public string ModeName => PveMode ? "PvE" : "PvP";
 }
 
