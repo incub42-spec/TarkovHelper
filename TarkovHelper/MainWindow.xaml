@@ -17,6 +17,10 @@
                 Background="#2E7D32">
           <TextBlock x:Name="TxtModeBadge" Text="PvE" FontWeight="Bold" Foreground="White"/>
         </Border>
+        <TextBlock Text="Фракция:" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        <ComboBox x:Name="CmbFaction" Width="110" Margin="6,0,0,0"
+                  SelectionChanged="OnFactionSelected"
+                  ToolTip="У части квестов две версии — для USEC и для BEAR. Укажите фракцию, чтобы в списке остались только свои."/>
         <Button x:Name="BtnAddProfile" Content="Добавить" Width="90" Margin="12,0,0,0"
                 Click="OnAddProfileClick"/>
         <Button x:Name="BtnRenameProfile" Content="Переименовать" Width="120" Margin="6,0,0,0"
@@ -90,6 +94,8 @@
                                             DisplayMemberBinding="{Binding Trader}"/>
                             <GridViewColumn Header="Квест" Width="330"
                                             DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Фракция" Width="70"
+                                            DisplayMemberBinding="{Binding Faction}"/>
                             <GridViewColumn Header="Уровень" Width="70"
                                             DisplayMemberBinding="{Binding Level}"/>
                             <GridViewColumn Header="Каппа" Width="60"
@@ -192,12 +198,11 @@
 
                 <TextBlock FontWeight="SemiBold" FontSize="14" Text="Оверлей"/>
                 <TextBlock x:Name="TxtHotkeyStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
-                           Text="F9 — наведите курсор на предмет в рейде (виден тултип с названием или окно осмотра): подсказка, нужен ли предмет. Игра должна работать в оконном режиме или borderless."/>
-                <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" FontWeight="SemiBold"
-                           Text="F10 — сканирование убежища, по одной станции за раз:"/>
-                <TextBlock Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"
-                           Text="1. Щёлкните левой кнопкой по станции в нижней панели убежища — откроется её окно.&#10;2. Не убирая курсор со станции, нажмите F10.&#10;3. Так по очереди с каждой станцией.&#10;&#10;Программа читает две области — плитку под курсором и окно станции — и сохраняет уровень, только если они совпали. Если курсор увести на другую плитку, она об этом скажет и ничего не запишет. Станции, которых в панели нет (например «Стена», когда проход за ней открыт), достраиваются сами по условиям постройки других станций."/>
+                <!-- тексты подставляются в коде: клавиши переназначаемые -->
+                <TextBlock x:Name="TxtItemHelp" Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"/>
+                <TextBlock x:Name="TxtHideoutHelpTitle" Margin="0,8,0,0" TextWrapping="Wrap"
+                           FontWeight="SemiBold"/>
+                <TextBlock x:Name="TxtHideoutHelp" Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
                 <TextBlock x:Name="TxtOcrStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </TabItem>

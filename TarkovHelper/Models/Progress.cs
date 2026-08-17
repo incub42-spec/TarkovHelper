@@ -10,6 +10,11 @@ public sealed class Progress
     public string Name { get; set; } = "Основной";
     /// <summary>Режим PvE: у него свой набор квестов и свои цены.</summary>
     public bool PveMode { get; set; }
+    /// <summary>
+    /// Фракция персонажа: «USEC», «BEAR» или пусто, если не указана. У части
+    /// квестов две версии, и своей фракции доступна только одна из них.
+    /// </summary>
+    public string Faction { get; set; } = "";
     public HashSet<string> CompletedQuests { get; set; } = new();
     /// <summary>Ид станции убежища -> построенный уровень (0 = не построено).</summary>
     public Dictionary<string, int> HideoutLevels { get; set; } = new();
@@ -25,6 +30,15 @@ public sealed class Progress
     public Dictionary<string, DateTime> QuestCheckedUtc { get; set; } = new();
 
     public string ModeName => PveMode ? "PvE" : "PvP";
+
+    /// <summary>
+    /// Доступен ли квест этому персонажу. Квест чужой фракции игроку не выдадут,
+    /// поэтому его не показываем и лут для него не собираем. Пока фракция не
+    /// выбрана, показываем всё — иначе молча спрячем половину списка.
+    /// </summary>
+    public bool Fits(string questFaction) =>
+        questFaction.Length == 0 || Faction.Length == 0 ||
+        string.Equals(questFaction, Faction, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

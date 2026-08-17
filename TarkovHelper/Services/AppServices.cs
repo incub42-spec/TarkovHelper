@@ -37,10 +37,14 @@ public sealed class AppServices
         if (Data != null)
             AfterDataLoaded();
 
-        // В кеше прошлых версий нет условий постройки станций — без них не
-        // достроить уровни вроде «Стены». Тихо обновляем базу в фоне.
-        if (Data != null && Data.Stations.Count > 0 &&
-            Data.Stations.All(s => s.Levels.All(l => l.StationRequirements.Count == 0)))
+        // В кеше прошлых версий нет условий постройки станций и фракций квестов —
+        // без них не достроить уровни вроде «Стены» и не отделить версии квестов
+        // для USEC и BEAR. Тихо обновляем базу в фоне.
+        var noStationReqs = Data is { Stations.Count: > 0 } &&
+                            Data.Stations.All(s => s.Levels.All(l => l.StationRequirements.Count == 0));
+        var noFactions = Data is { Quests.Count: > 0 } &&
+                         Data.Quests.All(q => q.Faction.Length == 0);
+        if (noStationReqs || noFactions)
             _ = RefreshDataAsync();
     }
 

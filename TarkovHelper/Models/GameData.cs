@@ -46,6 +46,12 @@ public sealed class Quest
     public string? WikiTitle { get; set; }
     /// <summary>Имя уже русское (из локали), подтягивать с вики не нужно.</summary>
     public bool HasRussianName { get; set; }
+    /// <summary>
+    /// Фракция, которой выдаётся квест: «USEC», «BEAR» или пусто для общих.
+    /// У части квестов в игре две версии с одинаковым названием и торговцем,
+    /// но разными идентификаторами — игроку доступна только своя.
+    /// </summary>
+    public string Faction { get; set; } = "";
 }
 
 public sealed class TradeRequirement

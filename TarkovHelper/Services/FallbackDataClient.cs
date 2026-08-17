@@ -225,6 +225,8 @@ public static class FallbackDataClient
                 WikiTitle = WikiTitle(Str(t, "wikiLink")),
                 HasRussianName = LocaleStr(sptRu, $"{id} name") != null,
                 TraderName = Traders.TryGetValue(traderId, out var tn) ? tn.Ru : "Торговец",
+                // «USEC»/«BEAR» у квестов, которые выдаются только своей фракции
+                Faction = Str(t, "factionName") is "USEC" or "BEAR" ? Str(t, "factionName") : "",
                 MinPlayerLevel = Int(t, "minPlayerLevel") ?? 0,
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
             };
@@ -450,6 +452,15 @@ public static class FallbackDataClient
 
         var map = await WikiTitles.ResolveAsync(
             quests.Select(q => q.WikiTitle!).Concat(items.Select(i => i.WikiTitle!)), ct);
+
+        // Часть квестов так и осталась английской: у их английских статей нет
+        // ссылки на русские, хотя обратная ссылка есть. Добираем обходом с
+        // русской стороны — по категории «Квесты».
+        if (quests.Any(q => !map.ContainsKey(q.WikiTitle!)))
+        {
+            status?.Report("Резервный источник: русские названия квестов с русской вики…");
+            map = await WikiTitles.ResolveQuestsFromRuAsync(map, ct);
+        }
 
         foreach (var q in quests)
             if (map.TryGetValue(q.WikiTitle!, out var ru)) q.Name = ru;

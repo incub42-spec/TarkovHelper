@@ -46,6 +46,21 @@ public partial class MainWindow : Window
             (false, true) => $"{hideoutKey} активна, но {itemKey} занята другим приложением.",
             _ => "Не удалось зарегистрировать горячие клавиши (заняты другими приложениями).",
         };
+        // подсказки пишем с реальными клавишами: они переназначаемые
+        TxtItemHelp.Text =
+            $"{itemKey} — наведите курсор на предмет в рейде (виден тултип с названием " +
+            "или окно осмотра): подсказка, нужен ли предмет. Игра должна работать " +
+            "в оконном режиме или borderless.";
+        TxtHideoutHelpTitle.Text = $"{hideoutKey} — сканирование убежища, по одной станции за раз:";
+        TxtHideoutHelp.Text =
+            "1. Щёлкните левой кнопкой по станции в нижней панели убежища — откроется её окно.\n" +
+            $"2. Не убирая курсор со станции, нажмите {hideoutKey}.\n" +
+            "3. Так по очереди с каждой станцией.\n\n" +
+            "Программа читает две области — плитку под курсором и окно станции — и сохраняет " +
+            "уровень, только если они совпали. Если курсор увести на другую плитку, она об этом " +
+            "скажет и ничего не запишет. Станции, которых в панели нет (например «Стена», когда " +
+            "проход за ней открыт), достраиваются сами по условиям постройки других станций.";
+
         TxtOcrStatus.Text = ScreenOcr.IsAvailable
             ? $"Windows OCR готов (язык: {ScreenOcr.EngineDescription})."
             : "Windows OCR недоступен — установите языковой пакет в Параметрах Windows.";
@@ -120,6 +135,29 @@ public partial class MainWindow : Window
             : Color.FromRgb(0xB7, 0x4E, 0x1E)); // PvP — оранжевый
         Title = $"Tarkov Helper — {App.Services.Progress.Name} ({App.Services.Progress.ModeName})";
         BtnDeleteProfile.IsEnabled = s.Profiles.Count > 1;
+
+        _switchingProfile = true;
+        CmbFaction.ItemsSource = FactionOptions;
+        CmbFaction.SelectedItem = App.Services.Progress.Faction switch
+        {
+            "USEC" => "USEC",
+            "BEAR" => "BEAR",
+            _ => FactionOptions[0],
+        };
+        _switchingProfile = false;
+    }
+
+    /// <summary>Первый пункт — «не указана»: тогда показываем квесты обеих фракций.</summary>
+    private static readonly List<string> FactionOptions = new() { "не указана", "USEC", "BEAR" };
+
+    private void OnFactionSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _switchingProfile) return;
+        var picked = CmbFaction.SelectedItem as string ?? "";
+        App.Services.Progress.Faction = picked is "USEC" or "BEAR" ? picked : "";
+        App.Services.SaveProgress();
+        App.Services.RebuildIndex(); // список нужного лута зависит от фракции
+        ApplyQuestFilter();
     }
 
     private async void OnProfileSelected(object sender, SelectionChangedEventArgs e)
@@ -369,6 +407,8 @@ public partial class MainWindow : Window
     private void ApplyQuestFilter()
     {
         IEnumerable<QuestRow> rows = _allQuests;
+        // квесты чужой фракции игроку не выдадут — прячем, если фракция указана
+        rows = rows.Where(r => App.Services.Progress.Fits(r.Faction));
         if (ChkHideCompleted.IsChecked == true)
             rows = rows.Where(r => !r.IsCompleted);
         var q = TxtQuestSearch.Text.Trim();
@@ -510,6 +550,8 @@ public partial class MainWindow : Window
 
         public string Trader => _quest.TraderName;
         public string Name => _quest.Name;
+        /// <summary>«USEC»/«BEAR» у квестов своей фракции, пусто у общих.</summary>
+        public string Faction => _quest.Faction;
         public string Level => _quest.MinPlayerLevel > 0 ? _quest.MinPlayerLevel.ToString() : "";
         public string Kappa => _quest.KappaRequired ? "да" : "";
 

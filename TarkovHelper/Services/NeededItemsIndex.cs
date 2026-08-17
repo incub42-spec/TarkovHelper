@@ -32,6 +32,7 @@ public sealed class NeededItemsIndex
         foreach (var quest in data.Quests)
         {
             if (progress.CompletedQuests.Contains(quest.Id)) continue;
+            if (!progress.Fits(quest.Faction)) continue; // квест чужой фракции не выдадут
             foreach (var obj in quest.ItemObjectives)
             {
                 foreach (var itemId in obj.ItemIds)

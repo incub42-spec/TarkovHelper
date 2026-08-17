@@ -12,6 +12,7 @@ namespace TarkovHelper.Services;
 public static class WikiTitles
 {
     private const string Api = "https://escapefromtarkov.fandom.com/api.php";
+    private const string ApiRu = "https://escapefromtarkov.fandom.com/ru/api.php";
     private const int BatchSize = 50; // предел MediaWiki на количество заголовков
 
     private static readonly HttpClient Http = CreateClient();
@@ -57,6 +58,94 @@ public static class WikiTitles
 
         if (added > 0) SaveCache(result);
         return result;
+    }
+
+    /// <summary>
+    /// Обход с другой стороны: межъязыковая ссылка часто стоит только на русской
+    /// странице («Хайкинг» → «Hiking»), а на английской её нет — тогда обычный
+    /// запрос ничего не находит. Забираем русские статьи из категории «Квесты»
+    /// вместе с их ссылками на английские и строим соответствие в обратную сторону.
+    /// Дополняет уже найденное, ничего не перезаписывая.
+    /// </summary>
+    public static async Task<Dictionary<string, string>> ResolveQuestsFromRuAsync(
+        Dictionary<string, string> known, CancellationToken ct = default)
+    {
+        try
+        {
+            var titles = await RuCategoryMembersAsync("Категория:Квесты", ct);
+            var added = 0;
+
+            for (var i = 0; i < titles.Count; i += BatchSize)
+            {
+                var batch = titles.Skip(i).Take(BatchSize).ToList();
+                var url = $"{ApiRu}?action=query&format=json&prop=langlinks&lllang=en&lllimit=500" +
+                          "&titles=" + Uri.EscapeDataString(string.Join("|", batch));
+
+                using var doc = JsonDocument.Parse(await Http.GetStringAsync(url, ct));
+                if (!doc.RootElement.TryGetProperty("query", out var query) ||
+                    !query.TryGetProperty("pages", out var pages))
+                    continue;
+
+                foreach (var page in pages.EnumerateObject())
+                {
+                    var v = page.Value;
+                    if (!v.TryGetProperty("langlinks", out var links) ||
+                        links.ValueKind != JsonValueKind.Array)
+                        continue;
+                    var en = links.EnumerateArray().FirstOrDefault().TryGetProperty("*", out var enName)
+                        ? enName.GetString()
+                        : null;
+                    var ru = v.GetProperty("title").GetString();
+                    if (string.IsNullOrWhiteSpace(en) || string.IsNullOrWhiteSpace(ru)) continue;
+                    if (known.ContainsKey(en!)) continue;
+
+                    known[en!] = ru!;
+                    added++;
+                }
+            }
+
+            if (added > 0) SaveCache(known);
+        }
+        catch
+        {
+            // вики недоступна — остаёмся с тем, что нашли обычным проходом
+        }
+        return known;
+    }
+
+    /// <summary>Все страницы категории русской вики (с постраничной выборкой).</summary>
+    private static async Task<List<string>> RuCategoryMembersAsync(string category, CancellationToken ct)
+    {
+        var titles = new List<string>();
+        string? cont = null;
+        do
+        {
+            var url = $"{ApiRu}?action=query&format=json&list=categorymembers&cmlimit=500" +
+                      "&cmtitle=" + Uri.EscapeDataString(category);
+            if (cont != null) url += "&cmcontinue=" + Uri.EscapeDataString(cont);
+
+            using var doc = JsonDocument.Parse(await Http.GetStringAsync(url, ct));
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("query", out var query) &&
+                query.TryGetProperty("categorymembers", out var members) &&
+                members.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var m in members.EnumerateArray())
+                {
+                    var t = m.TryGetProperty("title", out var tt) ? tt.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(t)) titles.Add(t!);
+                }
+            }
+
+            cont = root.TryGetProperty("continue", out var c) &&
+                   c.TryGetProperty("cmcontinue", out var cc)
+                ? cc.GetString()
+                : null;
+        }
+        while (cont != null && titles.Count < 5000); // страховка от бесконечной выборки
+
+        return titles;
     }
 
     private static string CacheFile =>
