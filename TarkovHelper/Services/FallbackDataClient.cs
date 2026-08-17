@@ -20,6 +20,9 @@ public static class FallbackDataClient
     /// </summary>
     private static string Mode => App.Services.Progress.PveMode ? "pve" : "regular";
 
+    /// <summary>Режим активного профиля для подписи источника данных.</summary>
+    public static string ModeName => App.Services.Progress.ModeName;
+
     private static string ItemsUrl => $"https://json.tarkov.dev/{Mode}/items";
     private static string TasksUrl => $"https://json.tarkov.dev/{Mode}/tasks";
     private static string BartersUrl => $"https://json.tarkov.dev/{Mode}/barters";
@@ -48,12 +51,12 @@ public static class FallbackDataClient
     private static readonly Dictionary<string, (string Name, string[] Aliases)> StationsRu = new()
     {
         ["vents"] = ("Вентиляция", Array.Empty<string>()),
-        ["security"] = ("Охрана", new[] { "Пост охраны" }),
+        ["security"] = ("Безопасность", new[] { "Охрана", "Пост охраны" }),
         ["lavatory"] = ("Санузел", Array.Empty<string>()),
         ["stash"] = ("Склад", new[] { "Схрон" }),
         ["generator"] = ("Генератор", Array.Empty<string>()),
         ["heating"] = ("Отопление", new[] { "Обогрев" }),
-        ["water-collector"] = ("Сборщик воды", new[] { "Водосборник" }),
+        ["water-collector"] = ("Водосборник", new[] { "Сборщик воды" }),
         ["medstation"] = ("Медблок", new[] { "Медицинский блок" }),
         ["nutrition-unit"] = ("Пищеблок", Array.Empty<string>()),
         ["rest-space"] = ("Зона отдыха", new[] { "Место отдыха" }),
@@ -63,14 +66,14 @@ public static class FallbackDataClient
         ["library"] = ("Библиотека", Array.Empty<string>()),
         ["scav-case"] = ("Ящик диких", new[] { "Посылка от диких", "Кейс диких" }),
         ["illumination"] = ("Освещение", Array.Empty<string>()),
-        ["hall-of-fame"] = ("Зал славы", new[] { "Доска почёта" }),
+        ["hall-of-fame"] = ("Уголок боевой славы", new[] { "Зал славы", "Доска почёта" }),
         ["air-filtering-unit"] = ("Установка фильтрации воздуха", new[] { "Фильтрация воздуха" }),
         ["solar-power"] = ("Солнечная электростанция", new[] { "Солнечная батарея" }),
         ["booze-generator"] = ("Самогонный аппарат", Array.Empty<string>()),
         ["bitcoin-farm"] = ("Ферма биткоинов", new[] { "Ферма биткойнов" }),
         ["christmas-tree"] = ("Новогодняя ёлка", new[] { "Ёлка" }),
         ["weapon-rack"] = ("Оружейная стойка", new[] { "Стойка для оружия" }),
-        ["gear-rack"] = ("Стойка для снаряжения", new[] { "Стойка снаряжения" }),
+        ["gear-rack"] = ("Стенд со снаряжением", new[] { "Стойка для снаряжения", "Стойка снаряжения" }),
         ["cultist-circle"] = ("Круг сектантов", new[] { "Круг культистов" }),
         ["gym"] = ("Тренажёрный зал", new[] { "Спортзал" }),
     };

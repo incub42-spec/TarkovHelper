@@ -8,7 +8,10 @@ namespace TarkovHelper.Services;
 public sealed class AppServices
 {
     public GameData? Data { get; private set; }
-    public Progress Progress { get; private set; } = new();
+    /// <summary>Общие настройки и список профилей.</summary>
+    public AppSettings Settings { get; private set; } = new();
+    /// <summary>Прогресс активного профиля (персонажа).</summary>
+    public Progress Progress => Settings.Active;
     public NeededItemsIndex? Index { get; private set; }
     public ItemMatcher? Matcher { get; private set; }
     public LogWatcher? Watcher { get; private set; }
@@ -19,16 +22,41 @@ public sealed class AppServices
     public string DataStatus =>
         Data == null
             ? "База не загружена — нажмите «Обновить данные»."
-            : $"Предметов: {Data.Items.Count}, квестов: {Data.Quests.Count}, обменов: {Data.Barters.Count}. " +
+            : $"Режим {Progress.ModeName}. Предметов: {Data.Items.Count}, квестов: {Data.Quests.Count}, " +
+              $"обменов: {Data.Barters.Count}. " +
               $"Обновлено: {Data.FetchedAtUtc.ToLocalTime():dd.MM.yyyy HH:mm} (источник: {Data.Source})";
 
     public void Init()
     {
-        Progress = DataStore.LoadProgress();
-        Progress.GamePath ??= TryDetectGamePath();
-        Data = DataStore.LoadData();
+        Settings = DataStore.LoadSettings();
+        Settings.GamePath ??= TryDetectGamePath();
+        if (string.IsNullOrEmpty(Settings.ActiveProfile))
+            Settings.ActiveProfile = Settings.Active.Name;
+        DataStore.SaveSettings(Settings); // закрепляем миграцию старого формата
+        Data = DataStore.LoadData(Progress.PveMode);
         if (Data != null)
             AfterDataLoaded();
+    }
+
+    /// <summary>Переключает активный профиль и подгружает базу его режима.</summary>
+    public async Task SwitchProfileAsync(string name)
+    {
+        var wasPve = Progress.PveMode;
+        Settings.ActiveProfile = name;
+        DataStore.SaveSettings(Settings);
+
+        if (Progress.PveMode != wasPve)
+        {
+            // у режима свой кеш: если его нет, качаем базу
+            Data = DataStore.LoadData(Progress.PveMode);
+            if (Data == null)
+            {
+                await RefreshDataAsync();
+                return;
+            }
+            AfterDataLoaded();
+        }
+        RebuildIndex();
     }
 
     /// <summary>
@@ -43,7 +71,7 @@ public sealed class AppServices
             var data = await TarkovDevClient.FetchAsync();
             data.Source = "tarkov.dev";
             Data = data;
-            DataStore.SaveData(data);
+            DataStore.SaveData(data, Progress.PveMode);
             AfterDataLoaded();
             return null;
         }
@@ -57,7 +85,7 @@ public sealed class AppServices
             var data = await FallbackDataClient.FetchAsync();
             data.Source = "резервный (json.tarkov.dev + SPT)";
             Data = data;
-            DataStore.SaveData(data);
+            DataStore.SaveData(data, Progress.PveMode);
             AfterDataLoaded();
             return null;
         }
@@ -83,7 +111,7 @@ public sealed class AppServices
 
     public void SaveProgress()
     {
-        DataStore.SaveProgress(Progress);
+        DataStore.SaveSettings(Settings);
         RebuildIndex();
     }
 
@@ -91,11 +119,11 @@ public sealed class AppServices
     {
         Watcher?.Dispose();
         Watcher = null;
-        if (Data == null || string.IsNullOrWhiteSpace(Progress.GamePath)) return;
-        if (!Directory.Exists(Progress.GamePath)) return;
+        if (Data == null || string.IsNullOrWhiteSpace(Settings.GamePath)) return;
+        if (!Directory.Exists(Settings.GamePath)) return;
 
         Watcher = new LogWatcher(
-            Progress.GamePath,
+            Settings.GamePath,
             Data.Quests.Select(q => q.Id),
             OnQuestCompletedFromLog);
     }
@@ -115,8 +143,8 @@ public sealed class AppServices
     /// </summary>
     public (int Found, int Added)? ImportQuestsFromLogs()
     {
-        if (Data == null || string.IsNullOrWhiteSpace(Progress.GamePath)) return null;
-        var logsDir = Path.Combine(Progress.GamePath, "Logs");
+        if (Data == null || string.IsNullOrWhiteSpace(Settings.GamePath)) return null;
+        var logsDir = Path.Combine(Settings.GamePath, "Logs");
         if (!Directory.Exists(logsDir)) return null;
 
         var known = Data.Quests.Select(q => q.Id).ToHashSet();

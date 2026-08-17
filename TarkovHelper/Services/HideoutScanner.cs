@@ -34,6 +34,12 @@ internal static partial class HideoutScanner
         var r = info.rcMonitor;
         var monitorWidth = r.Right - r.Left;
 
+        // Сначала нижняя панель убежища: там у каждой станции подписаны название
+        // и статус — уровень цифрой либо «Заблокировано». Это надёжнее иконок
+        // на карте; панель прокручивается, поэтому сканировать можно частями.
+        var panel = await ScanBottomPanelAsync(data, r);
+        if (panel.Found.Count > 0) return panel;
+
         // масштаб 3 — мелкие цифровые бейджи читаются надёжнее
         var lines = await ScreenOcr.RecognizeLayoutAsync(
             r.Left, r.Top, monitorWidth, r.Bottom - r.Top, scaleHint: 3);
@@ -129,6 +135,105 @@ internal static partial class HideoutScanner
         return new Result(found, noLevel);
     }
 
+    /// <summary>
+    /// Разбор нижней панели убежища. У каждой станции там: иконка с цифрой
+    /// уровня, справа название, а у недоступных — подпись «Заблокировано».
+    /// Станции без уровней (Круг сектантов, Тренажёрный зал) считаются
+    /// построенными, если рядом нет «Заблокировано».
+    /// </summary>
+    private static async Task<Result> ScanBottomPanelAsync(GameData data, RECT r)
+    {
+        var width = r.Right - r.Left;
+        var height = r.Bottom - r.Top;
+
+        // полоса панели: над нижним меню игры, примерно нижние 14% экрана
+        var top = r.Top + (int)(height * 0.855);
+        var stripHeight = (int)(height * 0.115);
+        var lines = await ScreenOcr.RecognizeLayoutAsync(r.Left, top, width, stripHeight, scaleHint: 3);
+
+        AppendDebug(lines, "нижняя панель");
+
+        var badges = new List<(int Value, double X, double Y)>();
+        var locks = new List<(double X, double Y)>();
+        foreach (var l in lines)
+        {
+            var clean = l.Text.Trim();
+            if (LockedRegex().IsMatch(clean))
+            {
+                locks.Add((l.X, l.Y));
+                continue;
+            }
+            if (clean.Length > 3) continue;
+            var digits = new string(clean.Where(char.IsDigit).ToArray());
+            if (digits.Length is >= 1 and <= 2)
+                badges.Add((digits[^1] - '0', l.X, l.Y));
+        }
+
+        var found = new List<StationLevel>();
+        var noLevel = new List<HideoutStation>();
+        var cell = width * 0.075; // ширина ячейки станции в панели
+
+        foreach (var (st, x, y) in MatchNames(data, lines).Values)
+        {
+            // «Заблокировано» пишется прямо под названием, с тем же левым краем
+            var locked = locks.Any(p => Math.Abs(p.X - x) <= cell && p.Y > y && p.Y - y < height * 0.05);
+            if (locked)
+            {
+                found.Add(new StationLevel(st, 0));
+                continue;
+            }
+
+            // цифра уровня — на иконке слева и чуть ниже начала названия
+            var best = (Value: 0, Dist: double.MaxValue);
+            foreach (var b in badges)
+            {
+                if (b.Value > MaxLevel(st)) continue;
+                var dx = x - b.X;
+                var dy = b.Y - y;
+                if (dx < 0 || dx > cell || dy < -height * 0.01 || dy > height * 0.05) continue;
+                var d = dx * dx + dy * dy;
+                if (d < best.Dist) best = (b.Value, d);
+            }
+
+            if (best.Dist < double.MaxValue)
+                found.Add(new StationLevel(st, best.Value));
+            else if (MaxLevel(st) == 1)
+                found.Add(new StationLevel(st, 1)); // одноуровневая и не заблокирована
+            else
+                noLevel.Add(st);
+        }
+
+        return new Result(found, noLevel);
+    }
+
+    /// <summary>Названия станций среди распознанных строк: станция -> позиция.</summary>
+    private static Dictionary<string, (HideoutStation St, double X, double Y)> MatchNames(
+        GameData data, List<ScreenOcr.Line> lines)
+    {
+        var hits = new Dictionary<string, (HideoutStation St, double X, double Y)>();
+        foreach (var line in lines)
+        {
+            var norm = ItemMatcher.Normalize(line.Text);
+            if (norm.Length < 3) continue;
+            foreach (var s in data.Stations)
+            {
+                foreach (var name in Names(s))
+                {
+                    var nn = ItemMatcher.Normalize(name);
+                    if (nn.Length < 3) continue;
+                    var hit = norm == nn || (nn.Length >= 5 && norm.Contains(nn));
+                    if (!hit) continue;
+                    if (!hits.TryGetValue(s.Id, out var ex) || line.Y < ex.Y)
+                        hits[s.Id] = (s, line.X, line.Y);
+                }
+            }
+        }
+        return hits;
+    }
+
+    [GeneratedRegex(@"(?i)заблокир|locked")]
+    private static partial Regex LockedRegex();
+
     private static IEnumerable<string?> Names(HideoutStation s)
     {
         yield return s.Name;
@@ -140,7 +245,7 @@ internal static partial class HideoutScanner
     private static int MaxLevel(HideoutStation s) =>
         s.Levels.Count == 0 ? 99 : s.Levels.Max(l => l.Level);
 
-    private static void AppendDebug(IEnumerable<ScreenOcr.Line> lines)
+    private static void AppendDebug(IEnumerable<ScreenOcr.Line> lines, string what = "весь экран")
     {
         try
         {
@@ -148,7 +253,7 @@ internal static partial class HideoutScanner
             if (File.Exists(file) && new FileInfo(file).Length > 1_000_000)
                 File.Delete(file);
             File.AppendAllText(file,
-                $"===== скан {DateTime.Now:yyyy-MM-dd HH:mm:ss} =====\n" +
+                $"===== скан {DateTime.Now:yyyy-MM-dd HH:mm:ss} ({what}) =====\n" +
                 string.Join("\n", lines.Select(l => $"  x={l.X,6:F0} y={l.Y,6:F0} | {l.Text}")) + "\n");
         }
         catch

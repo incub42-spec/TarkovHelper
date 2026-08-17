@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using TarkovHelper.Models;
 using TarkovHelper.Overlay;
 using TarkovHelper.Services;
@@ -25,16 +26,16 @@ public partial class MainWindow : Window
     {
         var s = App.Services;
 
-        ChkBarters.IsChecked = s.Progress.ShowBarterItems;
-        ChkScanRegion.IsChecked = s.Progress.ShowScanRegion;
-        ChkPveMode.IsChecked = s.Progress.PveMode;
-        TxtGamePath.Text = s.Progress.GamePath ?? "";
+        RefreshProfiles();
+        ChkBarters.IsChecked = s.Settings.ShowBarterItems;
+        ChkScanRegion.IsChecked = s.Settings.ShowScanRegion;
+        TxtGamePath.Text = s.Settings.GamePath ?? "";
         TxtDataStatus.Text = s.DataStatus;
         TxtWatcherStatus.Text = s.Watcher == null
             ? "Слежение за логами выключено (не указана папка игры)."
             : "Слежение за логами: " + s.Watcher.Status;
-        var itemKey = HotkeyNames.Describe(s.Progress.ItemHotkey);
-        var hideoutKey = HotkeyNames.Describe(s.Progress.HideoutHotkey);
+        var itemKey = HotkeyNames.Describe(s.Settings.ItemHotkey);
+        var hideoutKey = HotkeyNames.Describe(s.Settings.HideoutHotkey);
         BtnItemHotkey.Content = itemKey;
         BtnHideoutHotkey.Content = hideoutKey;
         TxtHotkeyStatus.Text = (OverlayWindow.HotkeyRegistered, OverlayWindow.HideoutHotkeyRegistered) switch
@@ -66,7 +67,7 @@ public partial class MainWindow : Window
         }
 
         _allItems = index.ByItemId.Values
-            .Where(n => n.NeededForQuestOrHideout || App.Services.Progress.ShowBarterItems)
+            .Where(n => n.NeededForQuestOrHideout || App.Services.Settings.ShowBarterItems)
             .Select(n => new ItemRow(n))
             .OrderByDescending(r => r.HasPrimary)
             .ThenBy(r => r.Name)
@@ -88,26 +89,103 @@ public partial class MainWindow : Window
     private void OnBarterFilterChanged(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
-        App.Services.Progress.ShowBarterItems = ChkBarters.IsChecked == true;
+        App.Services.Settings.ShowBarterItems = ChkBarters.IsChecked == true;
         App.Services.SaveProgress();
     }
 
     private void OnScanRegionChanged(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
-        App.Services.Progress.ShowScanRegion = ChkScanRegion.IsChecked == true;
+        App.Services.Settings.ShowScanRegion = ChkScanRegion.IsChecked == true;
         App.Services.SaveProgress();
     }
 
-    private async void OnPveModeChanged(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded) return;
-        App.Services.Progress.PveMode = ChkPveMode.IsChecked == true;
-        App.Services.SaveProgress();
+    // ---------- профили персонажей ----------
 
-        // наборы квестов различаются — база нужна заново
-        TxtDataStatus.Text = "Загружаю базу для выбранного режима…";
-        await App.Services.RefreshDataAsync();
+    private bool _switchingProfile;
+
+    private void RefreshProfiles()
+    {
+        _switchingProfile = true;
+        var s = App.Services.Settings;
+        CmbProfile.ItemsSource = s.Profiles.Select(p => $"{p.Name} ({p.ModeName})").ToList();
+        CmbProfile.SelectedIndex = s.Profiles.IndexOf(App.Services.Progress);
+        _switchingProfile = false;
+
+        var pve = App.Services.Progress.PveMode;
+        TxtModeBadge.Text = App.Services.Progress.ModeName;
+        BadgeMode.Background = new SolidColorBrush(pve
+            ? Color.FromRgb(0x2E, 0x7D, 0x32)   // PvE — зелёный
+            : Color.FromRgb(0xB7, 0x4E, 0x1E)); // PvP — оранжевый
+        Title = $"Tarkov Helper — {App.Services.Progress.Name} ({App.Services.Progress.ModeName})";
+        BtnDeleteProfile.IsEnabled = s.Profiles.Count > 1;
+    }
+
+    private async void OnProfileSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _switchingProfile) return;
+        var i = CmbProfile.SelectedIndex;
+        var profiles = App.Services.Settings.Profiles;
+        if (i < 0 || i >= profiles.Count) return;
+        if (profiles[i] == App.Services.Progress) return;
+
+        TxtDataStatus.Text = "Переключаю профиль…";
+        await App.Services.SwitchProfileAsync(profiles[i].Name);
+        RefreshFromServices();
+    }
+
+    private async void OnAddProfileClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ProfileDialog { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        var s = App.Services.Settings;
+        if (s.Profiles.Any(p => string.Equals(p.Name, dlg.ProfileName, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this, "Профиль с таким именем уже есть.", "Профили",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        s.Profiles.Add(new Progress { Name = dlg.ProfileName, PveMode = dlg.IsPve });
+        App.Services.SaveProgress();
+        await App.Services.SwitchProfileAsync(dlg.ProfileName);
+        RefreshFromServices();
+    }
+
+    private void OnRenameProfileClick(object sender, RoutedEventArgs e)
+    {
+        var current = App.Services.Progress;
+        var dlg = new ProfileDialog
+        {
+            Owner = this,
+            ProfileName = current.Name,
+            IsPve = current.PveMode,
+            ModeEditable = false, // режим менять нельзя: к нему привязан прогресс
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        current.Name = dlg.ProfileName;
+        App.Services.Settings.ActiveProfile = dlg.ProfileName;
+        App.Services.SaveProgress();
+        RefreshProfiles();
+    }
+
+    private async void OnDeleteProfileClick(object sender, RoutedEventArgs e)
+    {
+        var s = App.Services.Settings;
+        if (s.Profiles.Count < 2) return;
+
+        var current = App.Services.Progress;
+        var answer = MessageBox.Show(this,
+            $"Удалить профиль «{current.Name}» ({current.ModeName})?\n\n" +
+            $"Отметки {current.CompletedQuests.Count} квестов и уровни убежища будут потеряны.",
+            "Профили", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.OK) return;
+
+        s.Profiles.Remove(current);
+        App.Services.SaveProgress();
+        await App.Services.SwitchProfileAsync(s.Profiles[0].Name);
         RefreshFromServices();
     }
 
@@ -213,7 +291,7 @@ public partial class MainWindow : Window
 
         void Assign(uint vk)
         {
-            var p = App.Services.Progress;
+            var p = App.Services.Settings;
             if (isItem) p.ItemHotkey = vk; else p.HideoutHotkey = vk;
             App.Services.SaveProgress();
 
@@ -363,8 +441,8 @@ public partial class MainWindow : Window
     private void SaveGamePath()
     {
         var path = TxtGamePath.Text.Trim();
-        if (path == (App.Services.Progress.GamePath ?? "")) return;
-        App.Services.Progress.GamePath = string.IsNullOrEmpty(path) ? null : path;
+        if (path == (App.Services.Settings.GamePath ?? "")) return;
+        App.Services.Settings.GamePath = string.IsNullOrEmpty(path) ? null : path;
         App.Services.SaveProgress();
         App.Services.RestartWatcher();
         TxtWatcherStatus.Text = App.Services.Watcher == null

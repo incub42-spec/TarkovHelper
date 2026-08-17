@@ -101,7 +101,7 @@ public partial class OverlayWindow : Window
         UnregisterHotKey(hwnd, HideoutHotkeyId);
 
         // кнопки мыши регистрировать не нужно — они приходят через Raw Input
-        var p = App.Services.Progress;
+        var p = App.Services.Settings;
         HotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.ItemHotkey)
             || RegisterHotKey(hwnd, HotkeyId, 0, p.ItemHotkey);
         HideoutHotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.HideoutHotkey)
@@ -168,7 +168,7 @@ public partial class OverlayWindow : Window
             {
                 ShowLines(pt, ("Станции не распознаны", MutedBrush),
                     ($"Откройте общий вид убежища (или окно станции) и нажмите " +
-                     $"{Services.HotkeyNames.Describe(App.Services.Progress.HideoutHotkey)}", MutedBrush));
+                     $"{Services.HotkeyNames.Describe(App.Services.Settings.HideoutHotkey)}", MutedBrush));
                 return;
             }
 
@@ -463,7 +463,7 @@ public partial class OverlayWindow : Window
     private void FlashScanRegion(int px, int py, int pw, int ph)
     {
         // отладочная подсветка, включается в настройках
-        if (!App.Services.Progress.ShowScanRegion) return;
+        if (!App.Services.Settings.ShowScanRegion) return;
 
         var dpi = VisualTreeHelper.GetDpi(this);
         Canvas.SetLeft(ScanFrame, px / dpi.DpiScaleX - Left);
@@ -499,7 +499,7 @@ public partial class OverlayWindow : Window
         else if ((flags & RI_MOUSE_BUTTON_5_DOWN) != 0) pressed = VK_XBUTTON2;
         if (pressed == 0) return;
 
-        var p = App.Services.Progress;
+        var p = App.Services.Settings;
         if (p.ItemHotkey == pressed) _ = ScanAsync();
         else if (p.HideoutHotkey == pressed) _ = ScanHideoutAsync();
     }
