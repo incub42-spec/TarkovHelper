@@ -16,6 +16,11 @@ public sealed class Progress
 
     /// <summary>Когда уровень станции подтверждён сканом или вручную (UTC).</summary>
     public Dictionary<string, DateTime> HideoutCheckedUtc { get; set; } = new();
+    /// <summary>
+    /// Уровни, выведенные из условий постройки других станций, а не увиденные.
+    /// Это нижняя граница: станция построена «не ниже», но может быть и выше.
+    /// </summary>
+    public Dictionary<string, DateTime> HideoutImpliedUtc { get; set; } = new();
     /// <summary>Когда квест отмечен выполненным (UTC).</summary>
     public Dictionary<string, DateTime> QuestCheckedUtc { get; set; } = new();
 

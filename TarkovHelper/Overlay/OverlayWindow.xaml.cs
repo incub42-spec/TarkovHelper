@@ -199,7 +199,11 @@ public partial class OverlayWindow : Window
             {
                 App.Services.Progress.HideoutLevels[f.Station.Id] = f.Level;
                 App.Services.Progress.HideoutCheckedUtc[f.Station.Id] = DateTime.UtcNow;
+                App.Services.Progress.HideoutImpliedUtc.Remove(f.Station.Id); // увидели вместо догадки
             }
+            // станции, которые следуют из условий постройки отсканированной
+            // (тренажёрный зал требует «Стену» 6 — значит она достроена)
+            var implied = Services.HideoutInference.Apply(data, App.Services.Progress);
             App.Services.SaveProgress();
 
             var lines = new List<(string, System.Windows.Media.Brush)>();
@@ -219,6 +223,8 @@ public partial class OverlayWindow : Window
                 lines.Add(($"…и ещё {result.Found.Count - 10}", MutedBrush));
             if (result.NoLevel.Count > 0)
                 lines.Add(($"Без уровня: {string.Join(", ", result.NoLevel.Select(s => s.Name))}", MutedBrush));
+            foreach (var im in implied.Take(3))
+                lines.Add(($"Заодно: {im.Station.Name} — не ниже ур. {im.To}", MutedBrush));
             ShowLines(pt, lines.ToArray());
         }
         catch (Exception ex)
@@ -459,8 +465,9 @@ public partial class OverlayWindow : Window
         foreach (var n in questNeeds)
             lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : ""), QuestBrush));
 
-        foreach (var n in hideoutNeeds)
-            lines.Add(($"● {n.Source} — ×{n.Count}", HideoutBrush));
+        // сначала то, что можно строить прямо сейчас; «позже» — приглушённым
+        foreach (var n in hideoutNeeds.OrderByDescending(n => n.Available))
+            lines.Add(($"● {n.Source} — ×{n.Count}", n.Available ? HideoutBrush : MutedBrush));
 
         if (barterNeeds.Count > 0)
         {

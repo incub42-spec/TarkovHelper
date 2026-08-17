@@ -114,10 +114,13 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="0,4">
-                                <!-- зелёная галочка у подтверждённых станций, красный крестик у остальных -->
-                                <TextBlock Text="{Binding StatusGlyph}" Foreground="{Binding StatusBrush}"
-                                           FontWeight="Bold" FontSize="15" Width="24"
-                                           TextAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- зелёная галочка у подтверждённых станций, красный крестик у остальных;
+                                     нажатие подтверждает текущее значение вручную -->
+                                <Button Content="{Binding StatusGlyph}" Foreground="{Binding StatusBrush}"
+                                        FontWeight="Bold" FontSize="15" Width="24" Padding="0"
+                                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                        Click="OnStationCheckClick"
+                                        ToolTip="Отметить проверенным сейчас — для станций, которых в игре не видно"/>
                                 <TextBlock Text="{Binding Name}" Width="270" VerticalAlignment="Center"/>
                                 <TextBlock Text="Построен уровень:" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <ComboBox ItemsSource="{Binding LevelOptions}"
@@ -190,7 +193,11 @@
                 <TextBlock FontWeight="SemiBold" FontSize="14" Text="Оверлей"/>
                 <TextBlock x:Name="TxtHotkeyStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
-                           Text="F9 — наведите курсор на предмет в рейде (виден тултип с названием или окно осмотра): подсказка, нужен ли предмет. F10 — наведите курсор на станцию в нижней панели убежища (иконка с цифрой уровня рядом с названием): её уровень сохранится. Станции считываются по одной — так надёжнее, чем вся панель разом. Игра должна работать в оконном режиме или borderless."/>
+                           Text="F9 — наведите курсор на предмет в рейде (виден тултип с названием или окно осмотра): подсказка, нужен ли предмет. Игра должна работать в оконном режиме или borderless."/>
+                <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" FontWeight="SemiBold"
+                           Text="F10 — сканирование убежища, по одной станции за раз:"/>
+                <TextBlock Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"
+                           Text="1. Щёлкните левой кнопкой по станции в нижней панели убежища — откроется её окно.&#10;2. Не убирая курсор со станции, нажмите F10.&#10;3. Так по очереди с каждой станцией.&#10;&#10;Программа читает две области — плитку под курсором и окно станции — и сохраняет уровень, только если они совпали. Если курсор увести на другую плитку, она об этом скажет и ничего не запишет. Станции, которых в панели нет (например «Стена», когда проход за ней открыт), достраиваются сами по условиям постройки других станций."/>
                 <TextBlock x:Name="TxtOcrStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </TabItem>

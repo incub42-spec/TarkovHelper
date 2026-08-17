@@ -47,20 +47,32 @@ public sealed class NeededItemsIndex
             }
         }
 
-        // Убежище: уровни выше построенного
+        // Убежище: уровни выше построенного. У станций своя последовательность —
+        // уровень строится, только когда готов предыдущий и построены станции из
+        // его условий. Что до этого ещё не дошло, помечаем как «позже»: предмет
+        // нужен, но не в этом рейде.
+        int Built(string stationId) =>
+            progress.HideoutLevels.TryGetValue(stationId, out var l) ? l : 0;
+
         foreach (var station in data.Stations)
         {
-            var built = progress.HideoutLevels.TryGetValue(station.Id, out var lvl) ? lvl : 0;
+            var built = Built(station.Id);
             foreach (var level in station.Levels)
             {
                 if (level.Level <= built) continue;
+
+                var available = level.Level == built + 1 &&
+                                level.StationRequirements.All(r => Built(r.StationId) >= r.Level);
+
                 foreach (var req in level.Requirements)
                 {
                     Add(req.ItemId, new Need
                     {
                         Kind = NeedKind.Hideout,
-                        Source = $"Убежище: {station.Name} ур. {level.Level}",
+                        Source = $"Убежище: {station.Name} ур. {level.Level}" +
+                                 (available ? "" : " (позже)"),
                         Count = req.Count,
+                        Available = available,
                     });
                 }
             }

@@ -68,6 +68,15 @@ public sealed class HideoutLevel
 {
     public int Level { get; set; }
     public List<TradeRequirement> Requirements { get; set; } = new();
+    /// <summary>Какие станции и до какого уровня нужны, чтобы построить этот уровень.</summary>
+    public List<StationRequirement> StationRequirements { get; set; } = new();
+}
+
+/// <summary>Условие постройки: другая станция должна быть построена до Level.</summary>
+public sealed class StationRequirement
+{
+    public string StationId { get; set; } = "";
+    public int Level { get; set; }
 }
 
 public sealed class HideoutStation

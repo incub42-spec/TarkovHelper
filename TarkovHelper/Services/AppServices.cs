@@ -36,6 +36,12 @@ public sealed class AppServices
         Data = DataStore.LoadData(Progress.PveMode);
         if (Data != null)
             AfterDataLoaded();
+
+        // В кеше прошлых версий нет условий постройки станций — без них не
+        // достроить уровни вроде «Стены». Тихо обновляем базу в фоне.
+        if (Data != null && Data.Stations.Count > 0 &&
+            Data.Stations.All(s => s.Levels.All(l => l.StationRequirements.Count == 0)))
+            _ = RefreshDataAsync();
     }
 
     /// <summary>Переключает активный профиль и подгружает базу его режима.</summary>
@@ -99,6 +105,9 @@ public sealed class AppServices
     {
         // кеш мог быть собран прошлой версией с другими названиями станций
         FallbackDataClient.ApplyStationNames(Data!);
+        // уровни станций, которые видно только по условиям постройки других
+        if (HideoutInference.Apply(Data!, Progress).Count > 0)
+            DataStore.SaveSettings(Settings);
         Matcher = new ItemMatcher(Data!);
         RebuildIndex();
         RestartWatcher();

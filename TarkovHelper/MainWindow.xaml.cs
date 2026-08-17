@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -394,6 +395,17 @@ public partial class MainWindow : Window
             .ToList();
     }
 
+    /// <summary>
+    /// Подтвердить уровень станции вручную. Нужно, когда сканировать нечего:
+    /// «Стены» в панели убежища уже нет, а уровень в списке и так верный, значит
+    /// сменой значения отметку не поставить.
+    /// </summary>
+    private void OnStationCheckClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: StationRow row })
+            row.MarkChecked();
+    }
+
     // ---------- вкладка «Настройки» ----------
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
@@ -462,7 +474,12 @@ public partial class MainWindow : Window
             HasPrimary = n.NeededForQuestOrHideout;
             QuestText = n.QuestCount > 0 ? "×" + n.QuestCount : "";
             FirText = n.QuestFirCount > 0 ? "×" + n.QuestFirCount : "";
-            HideoutText = n.HideoutCount > 0 ? "×" + n.HideoutCount : "";
+            // «×6 (2)» — всего нужно шесть, из них два для построек, доступных сейчас
+            HideoutText = n.HideoutCount > 0
+                ? "×" + n.HideoutCount + (n.HideoutNowCount > 0 && n.HideoutNowCount != n.HideoutCount
+                    ? $" ({n.HideoutNowCount})"
+                    : "")
+                : "";
             BarterText = n.BarterUses > 0 ? n.BarterUses.ToString() : "";
             var flea = n.Item.LastLowPrice is > 0 ? n.Item.LastLowPrice : n.Item.Avg24hPrice;
             PriceText = flea is > 0 ? flea.Value.ToString("N0") : "";
@@ -533,7 +550,7 @@ public partial class MainWindow : Window
     private static string FormatChecked(Dictionary<string, DateTime> map, string id) =>
         map.TryGetValue(id, out var utc) ? utc.ToLocalTime().ToString("dd.MM HH:mm") : "";
 
-    private sealed class StationRow
+    private sealed class StationRow : INotifyPropertyChanged
     {
         private readonly HideoutStation _station;
 
@@ -545,6 +562,8 @@ public partial class MainWindow : Window
                 : station.Levels.Max(l => l.Level) + 1).ToList();
         }
 
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public string Name => _station.Name;
         public List<int> LevelOptions { get; }
 
@@ -554,31 +573,54 @@ public partial class MainWindow : Window
             set
             {
                 App.Services.Progress.HideoutLevels[_station.Id] = value;
-                App.Services.Progress.HideoutCheckedUtc[_station.Id] = DateTime.UtcNow;
-                App.Services.SaveProgress();
+                MarkChecked();
             }
         }
 
-        /// <summary>Когда уровень подтверждён сканом или вручную.</summary>
+        /// <summary>
+        /// Подтвердить текущее значение вручную. Нужно для станций, которых в игре
+        /// не видно (например «Стена», когда проход за ней уже открыт): сканировать
+        /// нечего, а сменой уровня в списке отметку не поставить, если он и так верный.
+        /// </summary>
+        public void MarkChecked()
+        {
+            App.Services.Progress.HideoutCheckedUtc[_station.Id] = DateTime.UtcNow;
+            App.Services.Progress.HideoutImpliedUtc.Remove(_station.Id); // теперь это факт
+            App.Services.SaveProgress();
+            foreach (var p in new[] { nameof(CheckedAt), nameof(IsChecked), nameof(StatusGlyph), nameof(StatusBrush) })
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
+        }
+
+        /// <summary>Откуда взялся уровень: скан, ручная отметка или вывод из построек.</summary>
         public string CheckedAt
         {
             get
             {
                 var at = FormatChecked(App.Services.Progress.HideoutCheckedUtc, _station.Id);
-                return at.Length == 0 ? "не проверялось" : "проверено " + at;
+                if (at.Length > 0) return "проверено " + at;
+                return IsImplied
+                    ? "не ниже этого — следует из других построек"
+                    : "не проверялось";
             }
         }
 
         public bool IsChecked =>
             App.Services.Progress.HideoutCheckedUtc.ContainsKey(_station.Id);
 
-        /// <summary>Галочка у проверенных станций, крестик у непроверенных.</summary>
-        public string StatusGlyph => IsChecked ? "✓" : "✕";
-        public Brush StatusBrush => IsChecked ? CheckedBrush : UncheckedBrush;
+        /// <summary>Уровень не увиден, а выведен по условиям постройки других станций.</summary>
+        public bool IsImplied =>
+            !IsChecked && App.Services.Progress.HideoutImpliedUtc.ContainsKey(_station.Id);
+
+        /// <summary>Галочка — проверено, «≈» — выведено логически, крестик — неизвестно.</summary>
+        public string StatusGlyph => IsChecked ? "✓" : IsImplied ? "≈" : "✕";
+        public Brush StatusBrush =>
+            IsChecked ? CheckedBrush : IsImplied ? ImpliedBrush : UncheckedBrush;
     }
 
     private static readonly Brush CheckedBrush =
         new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32));   // зелёный: подтверждено
     private static readonly Brush UncheckedBrush =
         new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));   // красный: ещё не проверяли
+    private static readonly Brush ImpliedBrush =
+        new SolidColorBrush(Color.FromRgb(0xE6, 0x8A, 0x00));   // янтарный: выведено, не увидено
 }

@@ -342,6 +342,22 @@ public static class FallbackDataClient
                                 level.Requirements.Add(new TradeRequirement { ItemId = itemId, Count = Int(r, "count") ?? 1 });
                         }
                     }
+                    // условия по другим станциям: по ним потом достраиваем уровни,
+                    // которых игрок не отмечал (тренажёрный зал => «Стена» построена)
+                    if (l.TryGetProperty("stationLevelRequirements", out var sreqs) &&
+                        sreqs.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var r in sreqs.EnumerateArray())
+                        {
+                            var stationId = Str(r, "station");
+                            if (stationId.Length > 0)
+                                level.StationRequirements.Add(new StationRequirement
+                                {
+                                    StationId = stationId,
+                                    Level = Int(r, "level") ?? 1,
+                                });
+                        }
+                    }
                     station.Levels.Add(level);
                 }
                 station.Levels.Sort((a, b) => a.Level.CompareTo(b.Level));
