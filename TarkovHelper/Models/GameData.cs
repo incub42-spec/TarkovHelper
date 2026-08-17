@@ -1,0 +1,86 @@
+namespace TarkovHelper.Models;
+
+/// <summary>Предмет из базы tarkov.dev (или квестовый предмет).</summary>
+public sealed class Item
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string ShortName { get; set; } = "";
+    public string? NameEn { get; set; }
+    public string? ShortNameEn { get; set; }
+    public int BasePrice { get; set; }
+    public int? Avg24hPrice { get; set; }
+    /// <summary>Текущая (последняя минимальная) цена на барахолке.</summary>
+    public int? LastLowPrice { get; set; }
+    /// <summary>Лучшая цена выкупа у торговцев.</summary>
+    public int? TraderSellPrice { get; set; }
+    /// <summary>Торговец, дающий лучшую цену.</summary>
+    public string? TraderSellName { get; set; }
+    /// <summary>Квестовый предмет (не существует в обычном инвентаре, только в рейде).</summary>
+    public bool IsQuestItem { get; set; }
+}
+
+/// <summary>Цель квеста "принести/заложить предметы".</summary>
+public sealed class QuestItemObjective
+{
+    /// <summary>Допустимые варианты предмета (обычно один).</summary>
+    public List<string> ItemIds { get; set; } = new();
+    public int Count { get; set; }
+    public bool FoundInRaid { get; set; }
+    public string Type { get; set; } = "";
+}
+
+public sealed class Quest
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string TraderName { get; set; } = "";
+    public int MinPlayerLevel { get; set; }
+    public bool KappaRequired { get; set; }
+    public List<QuestItemObjective> ItemObjectives { get; set; } = new();
+}
+
+public sealed class TradeRequirement
+{
+    public string ItemId { get; set; } = "";
+    public int Count { get; set; }
+}
+
+public sealed class Barter
+{
+    public string Id { get; set; } = "";
+    public string TraderName { get; set; } = "";
+    public int Level { get; set; }
+    public List<TradeRequirement> Required { get; set; } = new();
+    /// <summary>Название того, что получаем в обмен (для подписи).</summary>
+    public string Reward { get; set; } = "";
+}
+
+public sealed class HideoutLevel
+{
+    public int Level { get; set; }
+    public List<TradeRequirement> Requirements { get; set; } = new();
+}
+
+public sealed class HideoutStation
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>Английское название (для OCR английского клиента).</summary>
+    public string? NameEn { get; set; }
+    /// <summary>Альтернативные написания названия (разные версии клиента).</summary>
+    public List<string> Aliases { get; set; } = new();
+    public List<HideoutLevel> Levels { get; set; } = new();
+}
+
+/// <summary>Вся статическая база игры, кешируется на диске.</summary>
+public sealed class GameData
+{
+    public DateTime FetchedAtUtc { get; set; }
+    /// <summary>Откуда загружена база: "tarkov.dev" или "резервный (json.tarkov.dev + SPT)".</summary>
+    public string Source { get; set; } = "tarkov.dev";
+    public List<Item> Items { get; set; } = new();
+    public List<Quest> Quests { get; set; } = new();
+    public List<Barter> Barters { get; set; } = new();
+    public List<HideoutStation> Stations { get; set; } = new();
+}

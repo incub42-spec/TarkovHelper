@@ -1,0 +1,30 @@
+<Window x:Class="TarkovHelper.Overlay.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TarkovHelper Overlay"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        ResizeMode="NoResize">
+    <Canvas x:Name="RootCanvas">
+        <Rectangle x:Name="ScanFrame"
+                   Visibility="Collapsed"
+                   Stroke="#CCFFC94D"
+                   StrokeThickness="2"
+                   StrokeDashArray="6 3"
+                   Fill="#14FFC94D"/>
+        <Border x:Name="Panel"
+                Visibility="Collapsed"
+                Background="#E6101418"
+                BorderBrush="#FF3A4A55"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="10,8"
+                MaxWidth="420">
+            <StackPanel x:Name="PanelContent" />
+        </Border>
+    </Canvas>
+</Window>
