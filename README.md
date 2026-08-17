@@ -63,17 +63,18 @@ TarkovLab/TarkovData. Названия квестов в этом режиме �
 
 ## Запуск
 
-Нужен .NET 8 SDK (для сборки) или просто собранный exe.
+Проще всего — скачать exe из [релизов](https://github.com/incub42-spec/TarkovHelper/releases/latest)
+и запустить: он самодостаточный, .NET ставить не нужно.
+
+Для сборки из исходников нужен .NET 8 SDK:
 
 ```bash
-dotnet run --project TarkovHelper
+dotnet publish TarkovHelper -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-Сборка релиза:
-
-```bash
-dotnet publish TarkovHelper -c Release -r win-x64 --self-contained false
-```
+Готовый файл появится в `TarkovHelper\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\`.
+Не запускайте приложение через `dotnet run` из терминала: при закрытии терминала
+процесс завершится вместе с ним — используйте exe или ярлык на него.
 
 ## Требования и ограничения
 
