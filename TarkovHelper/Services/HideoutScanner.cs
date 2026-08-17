@@ -134,9 +134,10 @@ internal static partial class HideoutScanner
     }
 
     /// <summary>
-    /// Точечный разбор одной станции: берём небольшой прямоугольник вокруг курсора,
-    /// чтобы в кадр попала ровно одна плитка (иконка с цифрой уровня и название).
-    /// Соседние станции в область не влезают, поэтому перепутать уровень нельзя.
+    /// Разбор плитки под курсором. Область берём с запасом — курсор может стоять
+    /// на краю плитки или на её иконке, — поэтому в кадр попадают и соседние
+    /// станции. Из распознанных названий выбираем ближайшее к курсору, а цифру
+    /// уровня ищем только рядом с ним: чужие бейджи так не подхватятся.
     /// </summary>
     private static async Task<Result> ScanCellAsync(
         GameData data, RECT r, POINT cursor, Action<Region>? onRegion)
@@ -144,9 +145,8 @@ internal static partial class HideoutScanner
         var width = r.Right - r.Left;
         var height = r.Bottom - r.Top;
 
-        // ~13% экрана в каждую сторону: одна плитка панели с запасом на подпись
-        var w = (int)(width * 0.13);
-        var h = (int)(height * 0.13);
+        var w = (int)(width * 0.22);
+        var h = (int)(height * 0.15);
         var x = Math.Clamp(cursor.X - w / 2, r.Left, Math.Max(r.Left, r.Right - w));
         var y = Math.Clamp(cursor.Y - h / 2, r.Top, Math.Max(r.Top, r.Bottom - h));
 
@@ -156,13 +156,34 @@ internal static partial class HideoutScanner
 
         AppendDebug(lines, "ячейка под курсором");
 
-        return ParseSingle(data, lines, "плитка под курсором");
+        var cell = width * 0.075; // ширина плитки станции в нижней панели
+        var match = MatchNearCursor(data, lines, cursor.X - x, cursor.Y - y, height * 0.012, cell);
+        return ParseSingle(data, lines, "плитка под курсором", match, cell);
     }
 
     /// <summary>
-    /// Шапка открытого окна станции: справа сверху игра показывает название и
-    /// статус («Заблокировано» либо уровень). Берём только полосу с заголовком —
-    /// ниже идут требования для постройки, где есть чужие названия и цифры.
+    /// Станция в кадре с несколькими плитками: берём ту, чьё название ближе к
+    /// курсору (по горизонтали — плитки стоят в ряд). Если построчно не нашлось
+    /// ни одной, пробуем склеить весь кадр: значит станция в нём одна, просто
+    /// название разорвано на строки.
+    /// </summary>
+    private static (HideoutStation? St, double X, double Y) MatchNearCursor(
+        GameData data, List<ScreenOcr.Line> lines, double cx, double cy, double joinDy, double joinDx)
+    {
+        var hits = MatchNames(data, lines, joinDy, joinDx);
+        if (hits.Count == 0) return MatchInCell(data, lines);
+
+        var pick = hits.Values
+            .OrderBy(h => Math.Abs(h.X - cx) + Math.Abs(h.Y - cy) * 0.5)
+            .First();
+        return (pick.St, pick.X, pick.Y);
+    }
+
+    /// <summary>
+    /// Шапка открытого окна станции: справа игра показывает название и статус
+    /// («Заблокировано» либо уровень). Окно по высоте плавает вместе с размером
+    /// содержимого, поэтому полосу берём с запасом, но не доходя до блока
+    /// «Требования для постройки» — там чужие названия станций и их цифры.
     /// </summary>
     private static async Task<Result> ScanDetailHeaderAsync(
         GameData data, RECT r, Action<Region>? onRegion)
@@ -171,37 +192,64 @@ internal static partial class HideoutScanner
         var height = r.Bottom - r.Top;
 
         var x = r.Left + (int)(width * 0.36);
-        var y = r.Top + (int)(height * 0.12);
+        var y = r.Top + (int)(height * 0.10);
         var w = width - (int)(width * 0.36);
-        var h = (int)(height * 0.18);
+        var h = (int)(height * 0.30);
 
         var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 3);
         onRegion?.Invoke(new Region(x, y, w, h));
 
         AppendDebug(lines, "шапка окна станции");
 
-        return ParseSingle(data, lines, "окно станции");
+        var none = new Result(new List<StationLevel>(), new List<HideoutStation>(), "окно станции");
+
+        // заголовок — самое верхнее название в полосе: ниже идёт описание станции,
+        // в котором тоже может попасться название другой
+        var hits = MatchNames(data, lines, height * 0.012, width * 0.12);
+        (HideoutStation? St, double X, double Y) match;
+        if (hits.Count > 0)
+        {
+            var top = hits.Values.OrderBy(v => v.Y).First();
+            match = (top.St, top.X, top.Y);
+        }
+        else
+        {
+            match = MatchInCell(data, lines);
+        }
+        if (match.St == null) return none;
+
+        // статус пишется вплотную под заголовком — описание станции уже не берём
+        var band = lines
+            .Where(l => l.Y >= match.Y - height * 0.02 && l.Y <= match.Y + height * 0.05)
+            .ToList();
+
+        return ParseSingle(data, band, "окно станции", match, double.MaxValue);
     }
 
     /// <summary>
-    /// Разбор области, в которой заведомо одна станция: название плюс её статус.
-    /// Приоритет: явная надпись «УРОВЕНЬ N», затем «Заблокировано»/«Построить»,
-    /// затем цифровой бейдж на иконке.
+    /// Статус уже найденной станции: явная надпись «УРОВЕНЬ N», затем
+    /// «Заблокировано»/«Построить», затем цифровой бейдж на иконке.
+    /// maxDx — насколько далеко по горизонтали от названия можно брать строки:
+    /// в кадре с соседними плитками это отсекает их подписи и цифры.
     /// </summary>
-    private static Result ParseSingle(GameData data, List<ScreenOcr.Line> lines, string how)
+    private static Result ParseSingle(GameData data, List<ScreenOcr.Line> lines, string how,
+        (HideoutStation? St, double X, double Y) match, double maxDx)
     {
         var none = new Result(new List<StationLevel>(), new List<HideoutStation>(), how);
 
-        var match = MatchInCell(data, lines);
         if (match.St == null) return none;
         var st = match.St;
+
+        var near = double.IsInfinity(maxDx) || maxDx == double.MaxValue
+            ? lines
+            : lines.Where(l => Math.Abs(l.X - match.X) <= maxDx).ToList();
 
         Result One(int level) => new(
             new List<StationLevel> { new(st, level) }, new List<HideoutStation>(), how);
 
         var badges = new List<(int Value, double X, double Y)>();
         var locked = false;
-        foreach (var l in lines)
+        foreach (var l in near)
         {
             var clean = l.Text.Trim();
             if (LockedRegex().IsMatch(clean)) { locked = true; continue; }
@@ -219,7 +267,7 @@ internal static partial class HideoutScanner
                 badges.Add((digits[^1] - '0', l.X, l.Y));
         }
 
-        if (locked || lines.Any(l => NotBuiltRegex().IsMatch(l.Text)))
+        if (locked || near.Any(l => NotBuiltRegex().IsMatch(l.Text)))
             return One(0);
 
         // в кадре одна станция, поэтому подходит любой бейдж с допустимым
