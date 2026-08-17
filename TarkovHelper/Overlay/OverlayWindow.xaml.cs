@@ -10,7 +10,8 @@ namespace TarkovHelper.Overlay;
 
 /// <summary>
 /// Прозрачный кликопрозрачный оверлей на весь экран.
-/// F9 — распознать предмет под курсором (тултип или окно осмотра) и показать подсказку.
+/// Хоткей предмета (по умолчанию F9) — распознать предмет под курсором
+/// (тултип или окно осмотра) и показать подсказку; клавиши настраиваются.
 /// </summary>
 public partial class OverlayWindow : Window
 {
@@ -28,10 +29,14 @@ public partial class OverlayWindow : Window
     private bool _scanning;
 
     public static bool HotkeyRegistered { get; private set; }
+    public static bool HideoutHotkeyRegistered { get; private set; }
+    /// <summary>Текущий оверлей — чтобы настройки могли перерегистрировать клавиши.</summary>
+    public static OverlayWindow? Current { get; private set; }
 
     public OverlayWindow()
     {
         InitializeComponent();
+        Current = this;
 
         Left = SystemParameters.VirtualScreenLeft;
         Top = SystemParameters.VirtualScreenTop;
@@ -57,9 +62,25 @@ public partial class OverlayWindow : Window
         SetWindowLong(hwnd, GWL_EXSTYLE,
             exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
 
-        HotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, 0, VK_F9);
-        RegisterHotKey(hwnd, HideoutHotkeyId, 0, VK_F10);
+        ApplyHotkeys();
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+    }
+
+    /// <summary>
+    /// Перерегистрирует горячие клавиши по текущим настройкам.
+    /// Вызывается при старте и после смены клавиши в настройках.
+    /// </summary>
+    public void ApplyHotkeys()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        UnregisterHotKey(hwnd, HotkeyId);
+        UnregisterHotKey(hwnd, HideoutHotkeyId);
+
+        var p = App.Services.Progress;
+        HotkeyRegistered = RegisterHotKey(hwnd, HotkeyId, 0, p.ItemHotkey);
+        HideoutHotkeyRegistered = RegisterHotKey(hwnd, HideoutHotkeyId, 0, p.HideoutHotkey);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -115,7 +136,8 @@ public partial class OverlayWindow : Window
             if (result.Found.Count == 0)
             {
                 ShowLines(pt, ("Станции не распознаны", MutedBrush),
-                    ("Откройте общий вид убежища (или окно станции) и нажмите F10", MutedBrush));
+                    ($"Откройте общий вид убежища (или окно станции) и нажмите " +
+                     $"{Services.HotkeyNames.Describe(App.Services.Progress.HideoutHotkey)}", MutedBrush));
                 return;
             }
 

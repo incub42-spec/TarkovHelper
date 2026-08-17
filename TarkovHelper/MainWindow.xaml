@@ -120,6 +120,20 @@
                 <CheckBox x:Name="ChkScanRegion" Margin="0,10,0,0"
                           Content="Подсвечивать область сканирования (отладка OCR)"
                           Checked="OnScanRegionChanged" Unchecked="OnScanRegionChanged"/>
+
+                <TextBlock Text="Горячие клавиши" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBlock Text="Предмет под курсором:" Width="180" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnItemHotkey" Width="150" Content="F9"
+                            Click="OnItemHotkeyClick"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="Убежище:" Width="180" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnHideoutHotkey" Width="150" Content="F10"
+                            Click="OnHideoutHotkeyClick"/>
+                </StackPanel>
+                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
+                           Text="Нажмите кнопку и затем любую клавишу, чтобы переназначить. Клавиша перехватывается глобально, поэтому выбирайте ту, что не используется в игре."/>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
                            Text="Импорт находит в логах игры все сообщения о сдаче квестов и отмечает их выполненными. Логи хранятся не вечно: квесты, сданные до самой старой записи в логах, отметь вручную на вкладке «Квесты». Пока приложение запущено, новые сдачи подхватываются автоматически."/>
 

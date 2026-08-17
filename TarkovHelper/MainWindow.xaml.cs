@@ -32,9 +32,17 @@ public partial class MainWindow : Window
         TxtWatcherStatus.Text = s.Watcher == null
             ? "Слежение за логами выключено (не указана папка игры)."
             : "Слежение за логами: " + s.Watcher.Status;
-        TxtHotkeyStatus.Text = OverlayWindow.HotkeyRegistered
-            ? "Горячая клавиша F9 активна."
-            : "Не удалось зарегистрировать F9 (занята другим приложением).";
+        var itemKey = HotkeyNames.Describe(s.Progress.ItemHotkey);
+        var hideoutKey = HotkeyNames.Describe(s.Progress.HideoutHotkey);
+        BtnItemHotkey.Content = itemKey;
+        BtnHideoutHotkey.Content = hideoutKey;
+        TxtHotkeyStatus.Text = (OverlayWindow.HotkeyRegistered, OverlayWindow.HideoutHotkeyRegistered) switch
+        {
+            (true, true) => $"Горячие клавиши активны: {itemKey} — предмет, {hideoutKey} — убежище.",
+            (true, false) => $"{itemKey} активна, но {hideoutKey} занята другим приложением.",
+            (false, true) => $"{hideoutKey} активна, но {itemKey} занята другим приложением.",
+            _ => "Не удалось зарегистрировать горячие клавиши (заняты другими приложениями).",
+        };
         TxtOcrStatus.Text = ScreenOcr.IsAvailable
             ? $"Windows OCR готов (язык: {ScreenOcr.EngineDescription})."
             : "Windows OCR недоступен — установите языковой пакет в Параметрах Windows.";
@@ -88,6 +96,64 @@ public partial class MainWindow : Window
         if (!IsLoaded) return;
         App.Services.Progress.ShowScanRegion = ChkScanRegion.IsChecked == true;
         App.Services.SaveProgress();
+    }
+
+    private void OnItemHotkeyClick(object sender, RoutedEventArgs e) =>
+        CaptureHotkey(BtnItemHotkey, isItem: true);
+
+    private void OnHideoutHotkeyClick(object sender, RoutedEventArgs e) =>
+        CaptureHotkey(BtnHideoutHotkey, isItem: false);
+
+    /// <summary>
+    /// Ждёт нажатия клавиши и назначает её на сканирование. Пока кнопка «слушает»,
+    /// она подписана «нажмите клавишу…»; Esc отменяет назначение.
+    /// </summary>
+    private void CaptureHotkey(Button button, bool isItem)
+    {
+        var previous = button.Content;
+        button.Content = "нажмите клавишу…";
+        button.Focus();
+
+        void OnKey(object s, System.Windows.Input.KeyEventArgs args)
+        {
+            args.Handled = true;
+            // системные клавиши приходят как Key.System, реальная лежит в SystemKey
+            var key = args.Key == System.Windows.Input.Key.System ? args.SystemKey : args.Key;
+
+            button.PreviewKeyDown -= OnKey;
+            button.Content = previous;
+
+            if (key == System.Windows.Input.Key.Escape) return;
+            if (HotkeyNames.IsForbidden(key))
+            {
+                MessageBox.Show(this,
+                    "Эту клавишу назначить нельзя: модификаторы и системные клавиши " +
+                    "(Esc, Tab, Enter, Win, Caps Lock) сломают управление игрой и Windows.",
+                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var vk = HotkeyNames.ToVirtualKey(key);
+            var p = App.Services.Progress;
+            if (isItem) p.ItemHotkey = vk; else p.HideoutHotkey = vk;
+            App.Services.SaveProgress();
+
+            OverlayWindow.Current?.ApplyHotkeys();
+            RefreshFromServices();
+
+            var registered = isItem
+                ? OverlayWindow.HotkeyRegistered
+                : OverlayWindow.HideoutHotkeyRegistered;
+            if (!registered)
+            {
+                MessageBox.Show(this,
+                    $"Клавиша {HotkeyNames.Describe(vk)} занята другим приложением — " +
+                    "выберите другую.",
+                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        button.PreviewKeyDown += OnKey;
     }
 
     // ---------- вкладка «Квесты» ----------

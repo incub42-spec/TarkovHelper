@@ -12,4 +12,8 @@ public sealed class Progress
     public bool ShowBarterItems { get; set; }
     /// <summary>Подсвечивать область скриншота при сканировании (отладка OCR).</summary>
     public bool ShowScanRegion { get; set; }
+    /// <summary>Клавиша сканирования предмета (виртуальный код Windows). F9 по умолчанию.</summary>
+    public uint ItemHotkey { get; set; } = 0x78;
+    /// <summary>Клавиша сканирования убежища. F10 по умолчанию.</summary>
+    public uint HideoutHotkey { get; set; } = 0x79;
 }
