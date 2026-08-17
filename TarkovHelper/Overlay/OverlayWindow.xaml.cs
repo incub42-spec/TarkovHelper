@@ -409,6 +409,9 @@ public partial class OverlayWindow : Window
     /// </summary>
     private void FlashScanRegion(int px, int py, int pw, int ph)
     {
+        // отладочная подсветка, включается в настройках
+        if (!App.Services.Progress.ShowScanRegion) return;
+
         var dpi = VisualTreeHelper.GetDpi(this);
         Canvas.SetLeft(ScanFrame, px / dpi.DpiScaleX - Left);
         Canvas.SetTop(ScanFrame, py / dpi.DpiScaleY - Top);

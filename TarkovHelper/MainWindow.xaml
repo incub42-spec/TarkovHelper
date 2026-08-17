@@ -116,6 +116,9 @@
                 <Button x:Name="BtnImportLogs" Margin="0,8,0,0" Width="280" HorizontalAlignment="Left"
                         Content="Импортировать прогресс из логов игры"
                         Click="OnImportLogsClick"/>
+                <CheckBox x:Name="ChkScanRegion" Margin="0,10,0,0"
+                          Content="Подсвечивать область сканирования (отладка OCR)"
+                          Checked="OnScanRegionChanged" Unchecked="OnScanRegionChanged"/>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
                            Text="Импорт находит в логах игры все сообщения о сдаче квестов и отмечает их выполненными. Логи хранятся не вечно: квесты, сданные до самой старой записи в логах, отметь вручную на вкладке «Квесты». Пока приложение запущено, новые сдачи подхватываются автоматически."/>
 

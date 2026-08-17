@@ -10,4 +10,6 @@ public sealed class Progress
     public string? GamePath { get; set; }
     /// <summary>Показывать в списке предметы, нужные только для обменов.</summary>
     public bool ShowBarterItems { get; set; }
+    /// <summary>Подсвечивать область скриншота при сканировании (отладка OCR).</summary>
+    public bool ShowScanRegion { get; set; }
 }

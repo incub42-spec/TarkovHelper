@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         var s = App.Services;
 
         ChkBarters.IsChecked = s.Progress.ShowBarterItems;
+        ChkScanRegion.IsChecked = s.Progress.ShowScanRegion;
         TxtGamePath.Text = s.Progress.GamePath ?? "";
         TxtDataStatus.Text = s.DataStatus;
         TxtWatcherStatus.Text = s.Watcher == null
@@ -79,6 +80,13 @@ public partial class MainWindow : Window
     {
         if (!IsLoaded) return;
         App.Services.Progress.ShowBarterItems = ChkBarters.IsChecked == true;
+        App.Services.SaveProgress();
+    }
+
+    private void OnScanRegionChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        App.Services.Progress.ShowScanRegion = ChkScanRegion.IsChecked == true;
         App.Services.SaveProgress();
     }
 
