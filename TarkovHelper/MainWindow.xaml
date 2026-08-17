@@ -1,4 +1,4 @@
-<Window x:Class="TarkovHelper.MainWindow"
+﻿<Window x:Class="TarkovHelper.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="app.ico"
@@ -43,7 +43,10 @@
                              TextChanged="OnItemSearchChanged"
                              ToolTip="Поиск по названию предмета"/>
                 </DockPanel>
-                <ListView x:Name="ItemsList">
+                <!-- клик по заголовку сортирует; ключ сортировки берётся из
+                     привязки столбца, см. SortKeyFor в коде -->
+                <ListView x:Name="ItemsList"
+                          GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Предмет" Width="330"
@@ -79,7 +82,8 @@
                              TextChanged="OnQuestFilterChanged"
                              ToolTip="Поиск по названию квеста или торговцу"/>
                 </DockPanel>
-                <ListView x:Name="QuestsList">
+                <ListView x:Name="QuestsList"
+                          GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Переименовать квест…" Click="OnRenameQuestClick"/>

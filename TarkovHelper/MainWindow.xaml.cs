@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using TarkovHelper.Models;
 using TarkovHelper.Overlay;
@@ -98,6 +99,7 @@ public partial class MainWindow : Window
             ? _allItems
             : _allItems.Where(r => r.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
         ItemsList.ItemsSource = rows;
+        ApplySort(ItemsList, _itemsSort); // список пересобран — сортировку вернуть
     }
 
     private void OnItemSearchChanged(object sender, TextChangedEventArgs e) => ApplyItemFilter();
@@ -409,6 +411,7 @@ public partial class MainWindow : Window
         IEnumerable<QuestRow> rows = _allQuests;
         // квесты чужой фракции игроку не выдадут — прячем, если фракция указана
         rows = rows.Where(r => App.Services.Progress.Fits(r.Faction));
+
         if (ChkHideCompleted.IsChecked == true)
             rows = rows.Where(r => !r.IsCompleted);
         var q = TxtQuestSearch.Text.Trim();
@@ -417,6 +420,7 @@ public partial class MainWindow : Window
                 r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.Trader.Contains(q, StringComparison.OrdinalIgnoreCase));
         QuestsList.ItemsSource = rows.ToList();
+        ApplySort(QuestsList, _questsSort); // список пересобран — сортировку вернуть
     }
 
     private void OnQuestFilterChanged(object sender, RoutedEventArgs e)
@@ -535,6 +539,116 @@ public partial class MainWindow : Window
             TxtWatcherStatus.Text += " (внимание: в этой папке нет подпапки Logs)";
     }
 
+    // ---------- сортировка таблиц ----------
+
+    /// <summary>Выбранный столбец и направление для одного списка.</summary>
+    private sealed class SortState
+    {
+        public string? Property;
+        public ListSortDirection Direction = ListSortDirection.Ascending;
+    }
+
+    private readonly SortState _itemsSort = new();
+    private readonly SortState _questsSort = new();
+
+    /// <summary>
+    /// Ключ сортировки столбца. Для большинства — свойство из привязки, но у
+    /// колонок вида «×10» и цен сортировать надо по числу, а не по подписи,
+    /// иначе «×10» окажется раньше «×2». Столбцы с шаблоном (галочка, дата
+    /// проверки) привязки не имеют — их узнаём по заголовку.
+    /// </summary>
+    private static readonly Dictionary<string, string> SortKeyByBinding = new()
+    {
+        ["QuestText"] = "QuestCount",
+        ["FirText"] = "FirCount",
+        ["HideoutText"] = "HideoutCount",
+        ["BarterText"] = "BarterCount",
+        ["PriceText"] = "Price",
+        ["TraderPriceText"] = "TraderPrice",
+        ["Level"] = "LevelValue",
+    };
+
+    private static readonly Dictionary<string, string> SortKeyByHeader = new()
+    {
+        ["Выполнен"] = "IsCompleted",
+        ["Отмечен"] = "CheckedSort",
+    };
+
+    private static string? SortKeyFor(GridViewColumn column)
+    {
+        if (column.DisplayMemberBinding is Binding { Path.Path: { Length: > 0 } path })
+            return SortKeyByBinding.TryGetValue(path, out var better) ? better : path;
+
+        var header = HeaderText(column);
+        return SortKeyByHeader.TryGetValue(header, out var key) ? key : null;
+    }
+
+    /// <summary>Заголовок без стрелки сортировки.</summary>
+    private static string HeaderText(GridViewColumn column) =>
+        (column.Header?.ToString() ?? "").TrimEnd(' ', '▲', '▼');
+
+    /// <summary>
+    /// Клик по заголовку столбца сортирует список, повторный клик по тому же —
+    /// разворачивает порядок. Столбец, по которому идёт сортировка, помечается
+    /// стрелкой.
+    /// </summary>
+    private void OnColumnHeaderClick(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not GridViewColumnHeader { Column: { } column }) return;
+        if (SortKeyFor(column) is not { } property) return;
+
+        var list = (ListView)sender;
+        var state = ReferenceEquals(list, QuestsList) ? _questsSort : _itemsSort;
+
+        if (state.Property == property)
+        {
+            state.Direction = state.Direction == ListSortDirection.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+        }
+        else
+        {
+            state.Property = property;
+            // числа и даты полезнее сначала по убыванию: сверху самое крупное и свежее
+            state.Direction = IsNumericKey(property)
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+        }
+
+        ApplySort(list, state);
+    }
+
+    private static bool IsNumericKey(string property) =>
+        property is "QuestCount" or "FirCount" or "HideoutCount" or "BarterCount"
+            or "Price" or "TraderPrice" or "LevelValue" or "CheckedSort" or "IsCompleted";
+
+    /// <summary>Применяет сохранённую сортировку — вызывается и после смены содержимого.</summary>
+    private void ApplySort(ListView list, SortState state)
+    {
+        var view = CollectionViewSource.GetDefaultView(list.ItemsSource);
+        if (view == null) return;
+
+        view.SortDescriptions.Clear();
+        if (state.Property != null)
+            view.SortDescriptions.Add(new SortDescription(state.Property, state.Direction));
+        view.Refresh();
+
+        MarkSortedColumn(list, state);
+    }
+
+    /// <summary>Стрелка в заголовке: видно, по какому столбцу и в какую сторону.</summary>
+    private static void MarkSortedColumn(ListView list, SortState state)
+    {
+        if (list.View is not GridView grid) return;
+        foreach (var column in grid.Columns)
+        {
+            var title = HeaderText(column);
+            if (SortKeyFor(column) == state.Property && state.Property != null)
+                title += state.Direction == ListSortDirection.Ascending ? " ▲" : " ▼";
+            column.Header = title;
+        }
+    }
+
     // ---------- строки таблиц ----------
 
     private sealed class ItemRow
@@ -560,6 +674,13 @@ public partial class MainWindow : Window
             Sources = string.Join(";  ", n.Needs
                 .Where(x => x.Kind != NeedKind.Barter)
                 .Select(x => $"{x.Source} ×{x.Count}"));
+
+            QuestCount = n.QuestCount;
+            FirCount = n.QuestFirCount;
+            HideoutCount = n.HideoutCount;
+            BarterCount = n.BarterUses;
+            Price = flea ?? 0;
+            TraderPrice = n.Item.TraderSellPrice ?? 0;
         }
 
         public string Name { get; }
@@ -571,6 +692,14 @@ public partial class MainWindow : Window
         public string PriceText { get; }
         public string TraderPriceText { get; }
         public string Sources { get; }
+
+        // числовые значения для сортировки: по тексту «×10» шло бы перед «×2»
+        public int QuestCount { get; }
+        public int FirCount { get; }
+        public int HideoutCount { get; }
+        public int BarterCount { get; }
+        public int Price { get; }
+        public int TraderPrice { get; }
     }
 
     private sealed class QuestRow
@@ -586,6 +715,13 @@ public partial class MainWindow : Window
         public string Faction => _quest.Faction;
         public string Level => _quest.MinPlayerLevel > 0 ? _quest.MinPlayerLevel.ToString() : "";
         public string Kappa => _quest.KappaRequired ? "да" : "";
+
+        // значения для сортировки: по тексту «10» шло бы перед «2», а дата — перед галочкой
+        public int LevelValue => _quest.MinPlayerLevel;
+        public DateTime CheckedSort =>
+            App.Services.Progress.QuestCheckedUtc.TryGetValue(_quest.Id, out var utc)
+                ? utc
+                : DateTime.MinValue;
 
         public bool IsCompleted
         {
