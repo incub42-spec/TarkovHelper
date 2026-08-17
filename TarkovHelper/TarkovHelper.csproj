@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -14,9 +14,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- РёРєРѕРЅРєР° РІ СЂРµСЃСѓСЂСЃР°С…: РґР»СЏ РѕРєРѕРЅ РїСЂРёР»РѕР¶РµРЅРёСЏ (Window.Icon) -->
+    <!-- иконка в ресурсах: для окон приложения (Window.Icon) -->
     <Resource Include="app.ico" />
   </ItemGroup>
 
 </Project>
-
