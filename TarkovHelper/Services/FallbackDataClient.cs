@@ -14,10 +14,16 @@ namespace TarkovHelper.Services;
 /// </summary>
 public static class FallbackDataClient
 {
-    private const string ItemsUrl = "https://json.tarkov.dev/regular/items";
-    private const string TasksUrl = "https://json.tarkov.dev/regular/tasks";
-    private const string BartersUrl = "https://json.tarkov.dev/regular/barters";
-    private const string HideoutUrl = "https://json.tarkov.dev/regular/hideout";
+    /// <summary>
+    /// Режим игры: наборы квестов и цены у PvE и PvP различаются
+    /// (в PvE, например, нет событийных квестов «Neuanfang»).
+    /// </summary>
+    private static string Mode => App.Services.Progress.PveMode ? "pve" : "regular";
+
+    private static string ItemsUrl => $"https://json.tarkov.dev/{Mode}/items";
+    private static string TasksUrl => $"https://json.tarkov.dev/{Mode}/tasks";
+    private static string BartersUrl => $"https://json.tarkov.dev/{Mode}/barters";
+    private static string HideoutUrl => $"https://json.tarkov.dev/{Mode}/hideout";
     private const string SptRuUrl = "https://raw.githubusercontent.com/sp-tarkov/server/master/project/assets/database/locales/global/ru.json";
     private const string ItemsEnUrl = "https://raw.githubusercontent.com/TarkovTracker/tarkovdata/master/items.en.json";
     private const string QuestNamesUrl = "https://raw.githubusercontent.com/TarkovLab/TarkovData/master/data/quests.json";
@@ -92,9 +98,11 @@ public static class FallbackDataClient
         var tasksTask = GetJsonAsync(TasksUrl, ct);
         var bartersTask = GetJsonAsync(BartersUrl, ct);
         var hideoutTask = GetJsonAsync(HideoutUrl, ct);
-        var sptRuTask = GetJsonAsync(SptRuUrl, ct);
-        var itemsEnTask = GetJsonAsync(ItemsEnUrl, ct);
-        var questNamesTask = GetJsonAsync(QuestNamesUrl, ct);
+        // локаль SPT — необязательный источник: проект под судебным иском BSG
+        // и может исчезнуть, тогда русские названия берутся с вики
+        var sptRuTask = TryGetJsonAsync(SptRuUrl, ct);
+        var itemsEnTask = TryGetJsonAsync(ItemsEnUrl, ct);
+        var questNamesTask = TryGetJsonAsync(QuestNamesUrl, ct);
 
         await Task.WhenAll(itemsTask, tasksTask, bartersTask, hideoutTask,
             sptRuTask, itemsEnTask, questNamesTask);
@@ -184,6 +192,8 @@ public static class FallbackDataClient
                 LastLowPrice = Int(it, "lastLowPrice"),
                 TraderSellPrice = traderPrice,
                 TraderSellName = traderName,
+                WikiTitle = WikiTitle(Str(it, "wikiLink")),
+                HasRussianName = ruName != null,
             });
         }
 
@@ -200,11 +210,14 @@ public static class FallbackDataClient
             {
                 Id = id,
                 // русское имя из локали SPT → английское из TarkovLab → из ссылки
-                // на вики (спасает для квестов, вышедших после обновления обеих баз)
+                // на вики (спасает для квестов, вышедших после обновления обеих баз);
+                // ниже английские имена по возможности заменяются русскими с вики
                 Name = LocaleStr(sptRu, $"{id} name")
                     ?? (questNames.TryGetValue(id, out var qname) ? qname : null)
                     ?? NameFromWikiLink(Str(t, "wikiLink"))
                     ?? "Новый квест",
+                WikiTitle = WikiTitle(Str(t, "wikiLink")),
+                HasRussianName = LocaleStr(sptRu, $"{id} name") != null,
                 TraderName = Traders.TryGetValue(traderId, out var tn) ? tn.Ru : "Торговец",
                 MinPlayerLevel = Int(t, "minPlayerLevel") ?? 0,
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
@@ -333,6 +346,7 @@ public static class FallbackDataClient
         if (result.Items.Count == 0 || result.Quests.Count == 0)
             throw new InvalidOperationException("Резервный источник вернул пустые данные.");
 
+        await ApplyWikiRussianNamesAsync(result, status, ct);
         return result;
     }
 
@@ -342,6 +356,22 @@ public static class FallbackDataClient
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// То же, но недоступность источника не считается ошибкой: возвращается
+    /// пустой объект. Для необязательных баз, которые могут исчезнуть.
+    /// </summary>
+    private static async Task<JsonDocument> TryGetJsonAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            return await GetJsonAsync(url, ct);
+        }
+        catch
+        {
+            return JsonDocument.Parse("{}");
+        }
     }
 
     private static string? LocaleStr(JsonElement locale, string key) =>
@@ -354,6 +384,42 @@ public static class FallbackDataClient
         normalized.Length == 0
             ? "Станция"
             : char.ToUpperInvariant(normalized[0]) + normalized[1..].Replace('-', ' ');
+
+    /// <summary>Заголовок статьи вики из ссылки: «…/wiki/Fresh_Stock» → «Fresh Stock».</summary>
+    private static string? WikiTitle(string? wikiLink) => NameFromWikiLink(wikiLink);
+
+    /// <summary>
+    /// Для квестов и предметов без русского названия (вышли после обновления
+    /// локали SPT) достаёт русские имена с вики. Если вики недоступна —
+    /// остаются английские, это не ошибка загрузки.
+    /// </summary>
+    private static async Task ApplyWikiRussianNamesAsync(
+        GameData data, IProgress<string>? status, CancellationToken ct)
+    {
+        var quests = data.Quests
+            .Where(q => !q.HasRussianName && !string.IsNullOrEmpty(q.WikiTitle))
+            .ToList();
+        var items = data.Items
+            .Where(i => !i.HasRussianName && !string.IsNullOrEmpty(i.WikiTitle))
+            .ToList();
+        if (quests.Count == 0 && items.Count == 0) return;
+
+        status?.Report($"Резервный источник: русские названия с вики " +
+                       $"({quests.Count} квестов, {items.Count} предметов)…");
+
+        var map = await WikiTitles.ResolveAsync(
+            quests.Select(q => q.WikiTitle!).Concat(items.Select(i => i.WikiTitle!)), ct);
+
+        foreach (var q in quests)
+            if (map.TryGetValue(q.WikiTitle!, out var ru)) q.Name = ru;
+
+        foreach (var i in items)
+        {
+            if (!map.TryGetValue(i.WikiTitle!, out var ru)) continue;
+            i.NameEn ??= i.Name;
+            i.Name = ru;
+        }
+    }
 
     /// <summary>«salewa-first-aid-kit» → «Salewa First Aid Kit».</summary>
     private static string? NameFromSlug(string? slug)

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,12 +10,13 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyTitle>Tarkov Helper</AssemblyTitle>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- иконка в ресурсах: для окон приложения (Window.Icon) -->
+    <!-- РёРєРѕРЅРєР° РІ СЂРµСЃСѓСЂСЃР°С…: РґР»СЏ РѕРєРѕРЅ РїСЂРёР»РѕР¶РµРЅРёСЏ (Window.Icon) -->
     <Resource Include="app.ico" />
   </ItemGroup>
 
 </Project>
+

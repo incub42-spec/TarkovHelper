@@ -16,4 +16,6 @@ public sealed class Progress
     public uint ItemHotkey { get; set; } = 0x78;
     /// <summary>Клавиша сканирования убежища. F10 по умолчанию.</summary>
     public uint HideoutHotkey { get; set; } = 0x79;
+    /// <summary>Режим PvE: у него свой набор квестов и свои цены.</summary>
+    public bool PveMode { get; set; }
 }

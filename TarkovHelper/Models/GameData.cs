@@ -14,6 +14,10 @@ public sealed class Item
     public int? LastLowPrice { get; set; }
     /// <summary>Лучшая цена выкупа у торговцев.</summary>
     public int? TraderSellPrice { get; set; }
+    /// <summary>Заголовок статьи на англовики — по нему ищется русское название.</summary>
+    public string? WikiTitle { get; set; }
+    /// <summary>Имя уже русское (из локали), подтягивать с вики не нужно.</summary>
+    public bool HasRussianName { get; set; }
     /// <summary>Торговец, дающий лучшую цену.</summary>
     public string? TraderSellName { get; set; }
     /// <summary>Квестовый предмет (не существует в обычном инвентаре, только в рейде).</summary>
@@ -38,6 +42,10 @@ public sealed class Quest
     public int MinPlayerLevel { get; set; }
     public bool KappaRequired { get; set; }
     public List<QuestItemObjective> ItemObjectives { get; set; } = new();
+    /// <summary>Заголовок статьи на англовики — по нему ищется русское название.</summary>
+    public string? WikiTitle { get; set; }
+    /// <summary>Имя уже русское (из локали), подтягивать с вики не нужно.</summary>
+    public bool HasRussianName { get; set; }
 }
 
 public sealed class TradeRequirement

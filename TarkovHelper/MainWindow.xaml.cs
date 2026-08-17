@@ -27,6 +27,7 @@ public partial class MainWindow : Window
 
         ChkBarters.IsChecked = s.Progress.ShowBarterItems;
         ChkScanRegion.IsChecked = s.Progress.ShowScanRegion;
+        ChkPveMode.IsChecked = s.Progress.PveMode;
         TxtGamePath.Text = s.Progress.GamePath ?? "";
         TxtDataStatus.Text = s.DataStatus;
         TxtWatcherStatus.Text = s.Watcher == null
@@ -96,6 +97,18 @@ public partial class MainWindow : Window
         if (!IsLoaded) return;
         App.Services.Progress.ShowScanRegion = ChkScanRegion.IsChecked == true;
         App.Services.SaveProgress();
+    }
+
+    private async void OnPveModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        App.Services.Progress.PveMode = ChkPveMode.IsChecked == true;
+        App.Services.SaveProgress();
+
+        // наборы квестов различаются — база нужна заново
+        TxtDataStatus.Text = "Загружаю базу для выбранного режима…";
+        await App.Services.RefreshDataAsync();
+        RefreshFromServices();
     }
 
     // ---------- обновление приложения ----------

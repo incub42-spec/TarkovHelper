@@ -121,6 +121,10 @@
                           Content="Подсвечивать область сканирования (отладка OCR)"
                           Checked="OnScanRegionChanged" Unchecked="OnScanRegionChanged"/>
 
+                <CheckBox x:Name="ChkPveMode" Margin="0,10,0,0"
+                          Content="Режим PvE (у PvE и PvP разные наборы квестов и цены)"
+                          Checked="OnPveModeChanged" Unchecked="OnPveModeChanged"/>
+
                 <TextBlock Text="Обновление" FontWeight="SemiBold" Margin="0,16,0,4"/>
                 <TextBlock x:Name="TxtUpdateStatus" TextWrapping="Wrap"/>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
