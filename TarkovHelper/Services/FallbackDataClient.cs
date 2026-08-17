@@ -149,6 +149,12 @@ public static class FallbackDataClient
                 enShort = Str(en, "shortName");
             }
 
+            // Для предметов новее локалей имя берём из normalizedName — он есть
+            // в самом дампе и всегда актуален: «salewa-first-aid-kit» → «Salewa
+            // First Aid Kit». Иначе новый предмет выпал бы из базы совсем.
+            if (string.IsNullOrEmpty(enName))
+                enName = NameFromSlug(Str(it, "normalizedName"));
+
             // предмет без единого имени бесполезен и для списка, и для OCR
             if (ruName == null && string.IsNullOrEmpty(enName)) continue;
 
@@ -193,9 +199,12 @@ public static class FallbackDataClient
             var quest = new Quest
             {
                 Id = id,
-                // русское название из локали SPT; для квестов новее версии SPT — английское из TarkovLab
+                // русское имя из локали SPT → английское из TarkovLab → из ссылки
+                // на вики (спасает для квестов, вышедших после обновления обеих баз)
                 Name = LocaleStr(sptRu, $"{id} name")
-                    ?? (questNames.TryGetValue(id, out var qname) ? qname : id),
+                    ?? (questNames.TryGetValue(id, out var qname) ? qname : null)
+                    ?? NameFromWikiLink(Str(t, "wikiLink"))
+                    ?? "Новый квест",
                 TraderName = Traders.TryGetValue(traderId, out var tn) ? tn.Ru : "Торговец",
                 MinPlayerLevel = Int(t, "minPlayerLevel") ?? 0,
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
@@ -345,6 +354,31 @@ public static class FallbackDataClient
         normalized.Length == 0
             ? "Станция"
             : char.ToUpperInvariant(normalized[0]) + normalized[1..].Replace('-', ' ');
+
+    /// <summary>«salewa-first-aid-kit» → «Salewa First Aid Kit».</summary>
+    private static string? NameFromSlug(string? slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug)) return null;
+        var words = slug.Split('-', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..]);
+        var name = string.Join(' ', words);
+        return name.Length > 1 ? name : null;
+    }
+
+    /// <summary>
+    /// Достаёт название квеста из ссылки на вики:
+    /// «…/wiki/Fresh_Stock» → «Fresh Stock». Null, если ссылки нет.
+    /// </summary>
+    private static string? NameFromWikiLink(string? wikiLink)
+    {
+        if (string.IsNullOrWhiteSpace(wikiLink)) return null;
+        var slug = wikiLink.TrimEnd('/');
+        var i = slug.LastIndexOf('/');
+        if (i < 0 || i == slug.Length - 1) return null;
+
+        var name = Uri.UnescapeDataString(slug[(i + 1)..]).Replace('_', ' ').Trim();
+        return name.Length > 1 ? name : null;
+    }
 
     private static string Str(JsonElement e, string prop) =>
         e.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : "";
