@@ -82,6 +82,8 @@ internal static class NativeMethods
     public struct RAWMOUSE
     {
         public ushort usFlags;
+        /// <summary>Выравнивание: в RAWMOUSE дальше идёт union с 4-байтной границей.</summary>
+        public ushort usAlign;
         public ushort usButtonFlags;
         public ushort usButtonData;
         public uint ulRawButtons;
