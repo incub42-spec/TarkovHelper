@@ -299,7 +299,7 @@ public partial class OverlayWindow : Window
                 return;
             }
 
-            ShowResult(pt, match.Item);
+            await ShowResultAsync(pt, match.Item);
         }
         catch (Exception ex)
         {
@@ -458,7 +458,7 @@ public partial class OverlayWindow : Window
         }
     }
 
-    private void ShowResult(POINT pt, Item item)
+    private async Task ShowResultAsync(POINT pt, Item item)
     {
         var needs = App.Services.Index!.Get(item.Id);
         var lines = new List<(string, Brush)> { (item.Name, TitleBrush) };
@@ -496,15 +496,71 @@ public partial class OverlayWindow : Window
         {
             var flea = item.LastLowPrice is > 0 ? item.LastLowPrice : item.Avg24hPrice;
             if (flea is > 0)
-                lines.Add(($"Барахолка: {flea:N0} ₽ за шт.", MutedBrush));
+                lines.Add(($"Барахолка: {flea:N0} ₽", MutedBrush));
+
             if (item.TraderSellPrice is > 0)
-                lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice:N0} ₽ за шт.", MutedBrush));
+            {
+                // Жетон: Терапевт платит цену, умноженную на уровень убитого,
+                // поэтому одна цена из базы ни о чём не говорит. Уровень нарисован
+                // цифрой в углу ячейки — дочитываем его и показываем итог.
+                var level = item.IsDogtag ? await ReadDogtagLevelAsync(pt) : null;
+                if (level is > 0)
+                    lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice * level:N0} ₽ " +
+                               $"({item.TraderSellPrice:N0} × ур. {level})", MutedBrush));
+                else if (item.IsDogtag)
+                    lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice:N0} ₽ × уровень жетона",
+                        MutedBrush));
+                else
+                    lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice:N0} ₽", MutedBrush));
+            }
+
             // у стволов игра предлагает цену за собранный, с обвесом — суммы не сойдутся
             if (item.IsWeapon)
-                lines.Add(("Цены за голый ствол, без обвеса", MutedBrush));
+                lines.Add(("Цена за голый ствол, без обвеса", MutedBrush));
         }
 
         ShowLines(pt, lines.ToArray());
+    }
+
+    /// <summary>
+    /// Уровень убитого с жетона: игра рисует его цифрой в углу ячейки, а Терапевт
+    /// платит цену жетона, умноженную на этот уровень. Снимаем пятачок вокруг
+    /// курсора крупно и с порогом по яркости — мелкие цифры иначе не читаются, —
+    /// и берём число, ближайшее к курсору: у соседних ячеек свои цифры.
+    /// </summary>
+    private static async Task<int?> ReadDogtagLevelAsync(POINT pt)
+    {
+        var monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(monitor, ref mi);
+        var cell = (mi.rcMonitor.Right - mi.rcMonitor.Left) * 0.045; // ячейка инвентаря
+
+        var side = (int)(cell * 2);
+        var (x, y, w, h) = ClampToVirtualScreen(pt.X - side / 2, pt.Y - side / 2, side, side);
+        if (w < 8 || h < 8) return null;
+
+        var lines = await Services.ScreenOcr.RecognizeLayoutAsync(
+            x, y, w, h, scaleHint: 4, binarize: true);
+
+        int? best = null;
+        var bestDist = double.MaxValue;
+        foreach (var l in lines)
+        {
+            var clean = l.Text.Trim();
+            if (clean.Length > 3) continue; // рядом с уровнем другого текста нет
+            var digits = new string(clean.Where(char.IsDigit).ToArray());
+            if (digits.Length is < 1 or > 2) continue;
+            var value = int.Parse(digits);
+            if (value is < 1 or > 79) continue; // выше 79 уровень в игре не поднимается
+
+            var dx = l.X - (pt.X - x);
+            var dy = l.Y - (pt.Y - y);
+            var dist = Math.Sqrt(dx * dx + dy * dy);
+            if (dist > cell || dist >= bestDist) continue;
+            best = value;
+            bestDist = dist;
+        }
+        return best;
     }
 
     /// <summary>

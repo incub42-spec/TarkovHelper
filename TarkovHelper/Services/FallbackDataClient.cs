@@ -154,6 +154,10 @@ public static class FallbackDataClient
                 continue;
             }
             var isGun = hasTypes && types.EnumerateArray().Any(t => t.GetString() == "gun");
+            // отдельного типа для жетонов нет, но normalizedName у всех начинается
+            // с «dogtag-» («dogtag-bear», «dogtag-usec-1»); серебряный значок сюда
+            // не попадает — он «silver-badge» и по уровню не умножается
+            var isDogtag = Str(it, "normalizedName").StartsWith("dogtag", StringComparison.OrdinalIgnoreCase);
 
             var ruName = LocaleStr(sptRu, $"{id} Name");
             var ruShort = LocaleStr(sptRu, $"{id} ShortName");
@@ -190,6 +194,7 @@ public static class FallbackDataClient
             result.Items.Add(new Item
             {
                 IsWeapon = isGun,
+                IsDogtag = isDogtag,
                 Id = id,
                 Name = ruName ?? enName ?? id,
                 ShortName = ruShort ?? enShort ?? "",
