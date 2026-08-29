@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text.Json;
 using TarkovHelper.Models;
 
@@ -148,11 +148,12 @@ public static class FallbackDataClient
             var id = prop.Name;
 
             // пресеты оружия замусоривают распознавание, пропускаем
-            if (it.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array &&
-                types.EnumerateArray().Any(t => t.GetString() == "preset"))
+            var hasTypes = it.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array;
+            if (hasTypes && types.EnumerateArray().Any(t => t.GetString() == "preset"))
             {
                 continue;
             }
+            var isGun = hasTypes && types.EnumerateArray().Any(t => t.GetString() == "gun");
 
             var ruName = LocaleStr(sptRu, $"{id} Name");
             var ruShort = LocaleStr(sptRu, $"{id} ShortName");
@@ -188,6 +189,7 @@ public static class FallbackDataClient
 
             result.Items.Add(new Item
             {
+                IsWeapon = isGun,
                 Id = id,
                 Name = ruName ?? enName ?? id,
                 ShortName = ruShort ?? enShort ?? "",

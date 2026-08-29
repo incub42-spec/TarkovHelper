@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
@@ -17,8 +17,12 @@ public static class ScreenOcr
     private const int Scale = 2;
 
     private static OcrEngine? _engine;
+    private static OcrEngine? _altEngine;
+    private static bool _altTried;
 
     public static string? EngineDescription { get; private set; }
+    /// <summary>Язык второго движка или null, если второго нет.</summary>
+    public static string? AltEngineDescription { get; private set; }
 
     private static OcrEngine? GetEngine()
     {
@@ -28,6 +32,33 @@ public static class ScreenOcr
                   ?? OcrEngine.TryCreateFromLanguage(new Language("en-US"));
         EngineDescription = _engine?.RecognizerLanguage?.DisplayName;
         return _engine;
+    }
+
+    /// <summary>
+    /// Второй движок на другом языке. Русский движок латиницу не читает, а
+    /// подгоняет под свой словарь: «Magnum Research» превращается в «Мадпит
+    /// РеБеагсћ», и предмет не находится, хотя он есть в базе. У половины
+    /// оружия в Tarkov название латиницей, поэтому тот же кадр прогоняем
+    /// ещё и английским движком, а строки объединяем.
+    /// </summary>
+    private static OcrEngine? GetAltEngine()
+    {
+        if (_altTried) return _altEngine;
+        _altTried = true;
+
+        var primary = GetEngine()?.RecognizerLanguage?.LanguageTag ?? "";
+        var wanted = primary.StartsWith("ru", StringComparison.OrdinalIgnoreCase)
+            ? new[] { "en-US", "en-GB" }
+            : new[] { "ru", "ru-RU" };
+
+        foreach (var tag in wanted)
+        {
+            _altEngine = OcrEngine.TryCreateFromLanguage(new Language(tag));
+            if (_altEngine != null) break;
+        }
+
+        AltEngineDescription = _altEngine?.RecognizerLanguage?.DisplayName;
+        return _altEngine;
     }
 
     public static bool IsAvailable => GetEngine() != null;
@@ -45,7 +76,7 @@ public static class ScreenOcr
     /// так читаются мелкие цифры уровня на иконках убежища.</summary>
     public static async Task<List<Line>> RecognizeLayoutAsync(
         int x, int y, int width, int height, int scaleHint = Scale, string? savePngPath = null,
-        bool binarize = false)
+        bool binarize = false, bool bothLanguages = false)
     {
         var engine = GetEngine()
             ?? throw new InvalidOperationException(
@@ -82,16 +113,30 @@ public static class ScreenOcr
         var bitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, outW, outH, BitmapAlphaMode.Premultiplied);
         bitmap.CopyFromBuffer(pixels.AsBuffer());
 
-        var result = await engine.RecognizeAsync(bitmap);
-        return result.Lines
+        var lines = ToLines(await engine.RecognizeAsync(bitmap), scale);
+
+        // тот же кадр вторым движком: латинские названия русский движок коверкает
+        if (bothLanguages && GetAltEngine() is { } alt)
+        {
+            foreach (var line in ToLines(await alt.RecognizeAsync(bitmap), scale))
+            {
+                // одинаковый текст на том же месте — это одна и та же строка
+                if (lines.Any(l => l.Text == line.Text && Math.Abs(l.Y - line.Y) < 4)) continue;
+                lines.Add(line);
+            }
+        }
+
+        return lines.OrderBy(l => l.Y).ToList();
+    }
+
+    private static List<Line> ToLines(OcrResult result, int scale) =>
+        result.Lines
             .Select(l =>
             {
                 var r = l.Words.Count > 0 ? l.Words[0].BoundingRect : default;
                 return new Line(l.Text, r.X / scale, r.Y / scale);
             })
-            .OrderBy(l => l.Y)
             .ToList();
-    }
 
     /// <summary>
     /// Порог по яркости: светлые пиксели (текст интерфейса) становятся чёрными,

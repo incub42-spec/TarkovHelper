@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using TarkovHelper.Models;
 
@@ -44,7 +44,9 @@ public sealed class AppServices
                             Data.Stations.All(s => s.Levels.All(l => l.StationRequirements.Count == 0));
         var noFactions = Data is { Quests.Count: > 0 } &&
                          Data.Quests.All(q => q.Faction.Length == 0);
-        if (noStationReqs || noFactions)
+        // признак оружия появился позже — по нему подписываем, что цена без обвеса
+        var noWeapons = Data is { Items.Count: > 0 } && Data.Items.All(i => !i.IsWeapon);
+        if (noStationReqs || noFactions || noWeapons)
             _ = RefreshDataAsync();
     }
 

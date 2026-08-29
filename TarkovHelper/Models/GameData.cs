@@ -1,4 +1,4 @@
-namespace TarkovHelper.Models;
+﻿namespace TarkovHelper.Models;
 
 /// <summary>Предмет из базы tarkov.dev (или квестовый предмет).</summary>
 public sealed class Item
@@ -22,6 +22,11 @@ public sealed class Item
     public string? TraderSellName { get; set; }
     /// <summary>Квестовый предмет (не существует в обычном инвентаре, только в рейде).</summary>
     public bool IsQuestItem { get; set; }
+    /// <summary>
+    /// Оружие. Цены в базе — за голый ствол, а игра показывает предложение за
+    /// собранный, вместе с обвесом, поэтому суммы расходятся в разы.
+    /// </summary>
+    public bool IsWeapon { get; set; }
 }
 
 /// <summary>Цель квеста "принести/заложить предметы".</summary>

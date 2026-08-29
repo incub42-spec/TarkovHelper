@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using TarkovHelper.Models;
 
 namespace TarkovHelper.Services;
@@ -61,8 +61,14 @@ public sealed class ItemMatcher
 
             foreach (var entry in _entries)
             {
-                // грубый фильтр по длине, чтобы не считать Левенштейна зря
-                if (entry.Normalized.Length > line.Length + 4) continue;
+                // Грубый фильтр по длине, чтобы не считать Левенштейна зря.
+                // Раньше здесь было «+ 4», и это молча выбрасывало правильные
+                // варианты: OCR регулярно теряет слово («Штурмовая винтовка
+                // Desert Tech MDR» → «Штурмовая винтовка Tech MDR»), и название
+                // из базы оказывается заметно длиннее прочитанной строки.
+                // Порог согласован с отсечкой Левенштейна ниже: при большей
+                // разнице длин дистанция всё равно выйдет за предел.
+                if (entry.Normalized.Length > line.Length * 1.5 + 2) continue;
 
                 double score;
                 if (line == entry.Normalized)

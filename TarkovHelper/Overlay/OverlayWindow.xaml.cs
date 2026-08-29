@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -355,8 +355,12 @@ public partial class OverlayWindow : Window
             // отладка не должна мешать сканированию
         }
 
-        // масштаб 3: мелкий шрифт тултипов и меток («MS2000») на 2х читается с мусором
-        var lines = await Services.ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 3, savePngPath: png);
+        // Масштаб 3: мелкий шрифт тултипов и меток («MS2000») на 2х читается с мусором.
+        // bothLanguages — половина названий в игре латиницей, и русский движок их
+        // коверкает («Magnum Research» → «Мадпит РеБеагсћ»), поэтому кадр читается
+        // ещё и английским движком.
+        var lines = await Services.ScreenOcr.RecognizeLayoutAsync(
+            x, y, w, h, scaleHint: 3, savePngPath: png, bothLanguages: true);
         FlashScanRegion(x, y, w, h);
 
         // радиус ячейки инвентаря — от ширины монитора (~80 px при 2000)
@@ -492,9 +496,12 @@ public partial class OverlayWindow : Window
         {
             var flea = item.LastLowPrice is > 0 ? item.LastLowPrice : item.Avg24hPrice;
             if (flea is > 0)
-                lines.Add(($"Барахолка: {flea:N0} ₽", MutedBrush));
+                lines.Add(($"Барахолка: {flea:N0} ₽ за шт.", MutedBrush));
             if (item.TraderSellPrice is > 0)
-                lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice:N0} ₽", MutedBrush));
+                lines.Add(($"{item.TraderSellName}: {item.TraderSellPrice:N0} ₽ за шт.", MutedBrush));
+            // у стволов игра предлагает цену за собранный, с обвесом — суммы не сойдутся
+            if (item.IsWeapon)
+                lines.Add(("Цены за голый ствол, без обвеса", MutedBrush));
         }
 
         ShowLines(pt, lines.ToArray());
