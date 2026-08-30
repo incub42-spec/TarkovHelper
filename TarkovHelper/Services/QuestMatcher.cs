@@ -333,6 +333,22 @@ internal static partial class QuestMatcher
             // крайние ряды кадр режет пополам, и от названия может остаться
             // огрызок — по нему сокращать имя нельзя
             var wholeRow = index > 0 && index < rows.Count - 1;
+            // Имя из игры точнее нашего, когда они отличаются лишь алфавитом:
+            // «Оружейник. АКС-74Н» против собранного из вики «AKS-74N». Берём
+            // написанное на экране — но только в этом случае, чтобы опечатки
+            // распознавания не попали в название.
+            if (wholeRow && hit.Score >= 0.9)
+            {
+                var shown = CleanRowText(row);
+                var current = progress.NameOf(hit.Quest);
+                if (shown.Length >= 5 && shown != current &&
+                    ItemMatcher.Similarity(shown, current) < 0.95 &&
+                    ItemMatcher.Similarity(Translit(shown), Translit(current)) >= 0.95)
+                {
+                    shortNames[hit.Quest.Id] = shown;
+                }
+            }
+
             var seenPart = PartNumber(row.Texts);
             if (wholeRow && hit.Score >= 0.9 && seenPart == null)
             {
@@ -422,6 +438,28 @@ internal static partial class QuestMatcher
             score = Math.Max(score, ItemMatcher.Similarity(Translit(text), Translit(name)));
         }
         return score;
+    }
+
+    /// <summary>
+    /// Прочитанная строка без мусора: перед названием игра рисует иконку, а
+    /// после — пометку режима. Из нескольких прочтений ряда берём то, где
+    /// больше кириллицы: русский движок читает названия точнее.
+    /// </summary>
+    private static string CleanRowText(Row row)
+    {
+        var text = row.Texts
+            .OrderByDescending(t => t.Count(c => c is >= 'а' and <= 'я' or >= 'А' and <= 'Я'))
+            .First()
+            .Trim();
+
+        var tag = text.IndexOf(" [", StringComparison.Ordinal);
+        if (tag > 3) text = text[..tag];
+
+        // иконку OCR читает как короткое слово перед названием
+        var space = text.IndexOf(' ');
+        if (space > 0 && space <= 2) text = text[(space + 1)..];
+
+        return text.Trim();
     }
 
     /// <summary>Кириллица латиницей по звучанию: «АКС-74Н» → «aks-74n».</summary>
