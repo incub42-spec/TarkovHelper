@@ -270,7 +270,7 @@ public sealed class AppServices
     /// <summary>Запоминает порядок квестов и их разделы, увиденные в кадре.</summary>
     public void RememberQuestOrder(
         string trader, IEnumerable<Quest> seen, IReadOnlyDictionary<string, int> sections,
-        IReadOnlyDictionary<string, string> shortNames)
+        IReadOnlyDictionary<string, string> shortNames, IReadOnlyCollection<string> fullNames)
     {
         var ordered = seen.Where(q => q.TraderName == trader).ToList();
         if (ordered.Count == 0) return;
@@ -279,6 +279,9 @@ public sealed class AppServices
             Progress.QuestSections[id] = section;
         foreach (var (id, name) in shortNames)
             Progress.SeenNames[id] = name;
+        // игра показала номер части — прежнее укороченное имя было ошибкой
+        foreach (var id in fullNames)
+            Progress.SeenNames.Remove(id);
         SaveProgress();
     }
 

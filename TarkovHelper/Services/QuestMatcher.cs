@@ -119,7 +119,7 @@ internal static partial class QuestMatcher
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
         List<Quest> Unknown, List<Quest> Ordered, Dictionary<string, int> Sections,
-        Dictionary<string, string> ShortNames,
+        Dictionary<string, string> ShortNames, HashSet<string> FullNames,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -282,6 +282,9 @@ internal static partial class QuestMatcher
         var sections = new Dictionary<string, int>();
         // имена, которые игра показывает короче, чем они записаны в базе
         var shortNames = new Dictionary<string, string>();
+        // квесты, у которых игра показала номер части: короткое имя, если оно
+        // когда-то записалось по ошибке, надо снять
+        var fullNames = new HashSet<string>();
         var debug = new System.Text.StringBuilder();
 
         for (var index = 0; index < rows.Count; index++)
@@ -315,11 +318,16 @@ internal static partial class QuestMatcher
             // крайние ряды кадр режет пополам, и от названия может остаться
             // огрызок — по нему сокращать имя нельзя
             var wholeRow = index > 0 && index < rows.Count - 1;
-            if (wholeRow && hit.Score >= 0.9 && PartNumber(row.Texts) == null)
+            var seenPart = PartNumber(row.Texts);
+            if (wholeRow && hit.Score >= 0.9 && seenPart == null)
             {
                 var full = progress.NameOf(hit.Quest);
                 if (PartNumber(new[] { full }) != null)
                     shortNames[hit.Quest.Id] = WithoutPart(full);
+            }
+            else if (seenPart != null)
+            {
+                fullNames.Add(hit.Quest.Id);
             }
 
             // раздел квеста — последний заголовок выше его строки
@@ -334,6 +342,7 @@ internal static partial class QuestMatcher
         }
 
         return new Result(completed, active, failed, fresh, unknown, ordered, sections, shortNames,
+            fullNames,
             area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),
@@ -347,9 +356,15 @@ internal static partial class QuestMatcher
 
     private static int? PartNumber(IEnumerable<string> texts)
     {
-        foreach (var text in texts)
+        foreach (var raw in texts)
         {
-            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+
+            // «Вперед, к вершинам! Часть 2 [PVE ZONE]»: номер стоит не в конце
+            var text = raw;
+            var tag = text.IndexOf(" [", StringComparison.Ordinal);
+            if (tag > 3) text = text[..tag];
+
             var m = PartNumberRegex().Match(text.Trim());
             if (!m.Success) continue;
             var digit = FoldDigit(m.Groups[2].Value[0]);
