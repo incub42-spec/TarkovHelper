@@ -549,10 +549,17 @@ public partial class MainWindow : Window
         // диске, она попадает сюда только сканированием. Показываем размер
         // этого пробела, иначе расхождение выглядит как ошибка фильтра.
         var known = App.Services.Progress.CompletedQuests.Count;
+        // Описания и цели берутся из локали SPT; она от марта 2025, и тексты
+        // переработанных заданий отстают от игры — у «Оружейника. АКС-74Н»
+        // там ещё абзац про нейросети и эргономика 65 вместо 52.
+        var stale = App.Services.Data?.Source?.Contains("резервный") == true
+            ? " Описания и цели — из локали марта 2025: у переработанных заданий текст в игре другой."
+            : "";
         TxtQuestKnowledge.Text =
             $"Показано: {shown.Count}. Выполненными известны {known} из {_allQuests.Count} — " +
             "остальные сданные программа считает доступными, пока их не отсканируешь " +
-            $"({Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} на списке «Завершенные» у торговца).";
+            $"({Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} на списке «Завершенные» у торговца)." +
+            stale;
     }
 
     /// <summary>
