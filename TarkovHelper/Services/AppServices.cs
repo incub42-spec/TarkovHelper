@@ -280,6 +280,17 @@ public sealed class AppServices
     }
 
     /// <summary>Добавляет кадр в обход; возвращает, сколько узнано всего.</summary>
+    /// <summary>Разделы, попавшие в кадры текущего обхода.</summary>
+    private readonly Dictionary<string, HashSet<int>> _walkSections = new();
+
+    /// <summary>Запоминает, какие разделы списка попались в кадр.</summary>
+    public void RememberSeenSections(string trader, IEnumerable<int> sections)
+    {
+        if (!_walkSections.TryGetValue(trader, out var kept))
+            _walkSections[trader] = kept = new HashSet<int>();
+        foreach (var s in sections) kept.Add(s);
+    }
+
     public int RememberSeenQuests(string trader, IEnumerable<Quest> shown)
     {
         if (!_walk.TryGetValue(trader, out var seen))
@@ -310,8 +321,14 @@ public sealed class AppServices
     public List<Quest> FinishTraderWalk(string trader)
     {
         var seen = _walk.TryGetValue(trader, out var s) ? s : new HashSet<string>();
+        var sections = _walkSections.TryGetValue(trader, out var sec) ? sec : new HashSet<int>();
         _walk.Remove(trader);
+        _walkSections.Remove(trader);
         if (Data == null) return new List<Quest>();
+
+        // Начало списка в кадр не попадало — значит верх мы не видели. Судить
+        // можно только о тех разделах, что действительно просмотрены.
+        var partial = sections.Count > 0 && !sections.Contains(1);
 
         var notIssued = new List<Quest>();
         var changed = false;
@@ -331,6 +348,8 @@ public sealed class AppServices
             // квест, который сканирование видело активным, торговец точно выдал
             if (Progress.ActiveQuests.Contains(quest.Id)) continue;
             if (!Progress.IsAvailable(quest)) continue;
+            // о непросмотренной части списка судить нельзя
+            if (partial && !sections.Contains(Progress.SectionOf(quest))) continue;
 
             notIssued.Add(quest);
             changed |= Progress.NotIssued.Add(quest.Id);

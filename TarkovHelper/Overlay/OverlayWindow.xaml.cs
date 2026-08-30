@@ -351,6 +351,7 @@ public partial class OverlayWindow : Window
             {
                 var seen = App.Services.RememberSeenQuests(trader, result.Seen);
                 App.Services.RememberUnmatched(trader, result.UnmatchedRows);
+                App.Services.RememberSeenSections(trader, result.SeenSections);
 
                 if (!reconcile)
                 {
