@@ -336,7 +336,17 @@ public partial class OverlayWindow : Window
             // Всё, что мы считаем доступным, но игра не показала, уже сдано.
             if (result.IsAvailableList && result.Trader is { } trader)
             {
-                if (reconcile)
+                if (!result.ListFitsFrame)
+                {
+                    // Строки дошли до нижнего края: снизу есть ещё, и отсутствие
+                    // квеста в кадре ничего не значит. Сверить такой список
+                    // нельзя — можно только пройти его целиком с прокруткой.
+                    if (reconcile)
+                        lines.Add(("✕ Сверка отменена: список не влез в кадр", FailBrush));
+                    lines.Add(($"{trader}: список длиннее кадра — включите «Завершенные» " +
+                               "и пройдите его с прокруткой", MutedBrush));
+                }
+                else if (reconcile)
                 {
                     var marked = App.Services.ReconcileTrader(trader, result.Seen);
                     if (marked.Count == 0)

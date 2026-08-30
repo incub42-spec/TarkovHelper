@@ -47,7 +47,7 @@ internal static partial class QuestMatcher
     /// </summary>
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> Unknown,
-        Region Area, int LinesRead, int StatusMarks, string Log)
+        Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total => Completed.Count + Active.Count + Failed.Count + Unknown.Count;
 
@@ -66,6 +66,13 @@ internal static partial class QuestMatcher
         /// квеста в кадре само по себе информация.
         /// </summary>
         public bool IsAvailableList => Completed.Count == 0 && Total >= 3;
+
+        /// <summary>
+        /// Список уместился в кадр целиком. Если строки доходят до нижнего
+        /// края, снизу почти наверняка есть ещё — и тогда отсутствие квеста
+        /// в кадре не значит ничего: он может быть просто ниже.
+        /// </summary>
+        public bool ListFitsFrame => Area.H <= 0 || LastRowY < Area.H * 0.88;
 
         /// <summary>
         /// Строки со статусом, которые не удалось привязать к квесту базы.
@@ -180,7 +187,8 @@ internal static partial class QuestMatcher
         }
 
         return new Result(completed, active, failed, unknown, area, lines.Count,
-            doneMarks.Count + activeMarks.Count + failedMarks.Count, debug.ToString());
+            doneMarks.Count + activeMarks.Count + failedMarks.Count, debug.ToString(),
+            rows.Count == 0 ? 0 : rows[^1].Y);
     }
 
     private static int? PartNumber(IEnumerable<string> texts)
