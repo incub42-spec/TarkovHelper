@@ -308,15 +308,15 @@ internal static partial class QuestMatcher
 
             matched.TryGetValue(row, out var hit);
 
-            if (hit.Quest == null && (isDone || isActive || isFailed || isNew))
-            {
-                // из всех прочтений ряда берём самое «русское»: английский
-                // движок коверкает кириллицу до неузнаваемости
-                var best = row.Texts
-                    .OrderByDescending(t => t.Count(c => c is >= 'а' and <= 'я' or >= 'А' and <= 'Я'))
-                    .First();
-                unmatchedRows.Add(best);
-            }
+            // раздел квеста — последний заголовок выше его строки
+            var rowSection = sectionMarks.LastOrDefault(m => m.Y < row.Y - 4).Section;
+
+            // Оперативных и сюжетных заданий в базе нет вовсе — предлагать
+            // связать такую строку не с чем, и в списке она только мешает.
+            var ownSection = rowSection is not (OperationalSection or StorySection);
+
+            if (hit.Quest == null && ownSection && (isDone || isActive || isFailed || isNew))
+                unmatchedRows.Add(CleanRowText(row));
 
             debug.AppendLine($"  y={row.Y,5:F0} | {string.Join(" / ", row.Texts)}" +
                              $"  => {(hit.Quest == null ? "нет" : hit.Quest.Name)} " +
@@ -361,9 +361,7 @@ internal static partial class QuestMatcher
                 fullNames.Add(hit.Quest.Id);
             }
 
-            // раздел квеста — последний заголовок выше его строки
-            var section = sectionMarks.LastOrDefault(m => m.Y < row.Y - 4);
-            if (section.Section > 0) sections[hit.Quest.Id] = section.Section;
+            if (rowSection > 0) sections[hit.Quest.Id] = rowSection;
 
             if (isFailed) failed.Add(hit.Quest);
             else if (isActive) active.Add(hit.Quest);
