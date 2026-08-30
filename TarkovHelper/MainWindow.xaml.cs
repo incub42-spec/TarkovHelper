@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TarkovHelper.Models;
@@ -117,9 +118,15 @@ public partial class MainWindow : Window
         }
 
         // строим всё, что вообще кому-то нужно: какие источники показывать —
-        // решают галочки, и переключаются они без пересборки списка
+        // решают галочки, и переключаются они без пересборки списка.
+        //
+        // Варианты одного предмета в базе — разные записи: армейских жетонов
+        // девять штук с одним и тем же русским именем. В списке сбора они
+        // неразличимы и только мешают, поэтому строка одна на имя.
         _allItems = index.ByItemId.Values
-            .Select(n => new ItemRow(n))
+            .GroupBy(n => n.Item.Name + (n.Item.IsQuestItem ? " [квестовый]" : ""),
+                     StringComparer.CurrentCulture)
+            .Select(g => new ItemRow(g.ToList()))
             .OrderByDescending(r => r.HasPrimary)
             .ThenBy(r => r.Name)
             .ToList();
@@ -157,6 +164,25 @@ public partial class MainWindow : Window
     }
 
     private void OnItemSearchChanged(object sender, TextChangedEventArgs e) => ApplyItemFilter();
+
+    /// <summary>
+    /// Столбец «Источники» обрезан: у ходовых предметов причин десятки. Полный
+    /// список открывается отдельным окном.
+    /// </summary>
+    private void OnItemRowActivated(object sender, MouseButtonEventArgs e) => ShowItemSources();
+
+    private void OnItemListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        ShowItemSources();
+        e.Handled = true;
+    }
+
+    private void ShowItemSources()
+    {
+        if (ItemsList.SelectedItem is not ItemRow row) return;
+        new ItemSourcesWindow(row.Name, row.Needs, row.Variants) { Owner = this }.ShowDialog();
+    }
 
     private void OnItemScopeChanged(object sender, RoutedEventArgs e)
     {
@@ -1264,7 +1290,14 @@ public partial class MainWindow : Window
     /// считаем по всей группе: пятнадцать наушников любых моделей — это
     /// пятнадцать штук всего, и накопленные разные модели складываются.
     /// </summary>
-    private static int LeftToFind(ItemNeeds needs)
+    private static int LeftToFind(ItemNeeds needs) =>
+        LeftToFind(needs, new[] { needs.Item.Id });
+
+    /// <param name="ids">
+    /// Все записи базы, слитые в одну строку: жетоны разных уровней считаются
+    /// вместе, иначе накопленное разложится по невидимым вариантам.
+    /// </param>
+    private static int LeftToFind(ItemNeeds needs, IReadOnlyList<string> ids)
     {
         var progress = App.Services.Progress;
         var index = App.Services.Index;
@@ -1276,9 +1309,9 @@ public partial class MainWindow : Window
             var count = group.Sum(n => n.Count);
             var have = group.Key.Length > 0 &&
                        index != null &&
-                       index.GroupItems.TryGetValue(group.Key, out var ids)
-                ? ids.Sum(progress.InStash)
-                : progress.InStash(needs.Item.Id);
+                       index.GroupItems.TryGetValue(group.Key, out var groupIds)
+                ? groupIds.Sum(progress.InStash)
+                : ids.Sum(progress.InStash);
 
             left += Math.Max(0, count - have);
         }
@@ -1353,9 +1386,14 @@ public partial class MainWindow : Window
 
     private sealed class ItemRow
     {
-        public ItemRow(ItemNeeds n)
+        public ItemRow(List<ItemNeeds> variants)
         {
+            Variants = variants;
+            var n = Merge(variants);
+            Needs = n;
+
             Name = n.Item.Name + (n.Item.IsQuestItem ? " [квестовый]" : "");
+            if (variants.Count > 1) Name += $"  · {variants.Count} вар.";
             HasPrimary = n.NeededForQuestOrHideout;
             // «×6 (2)» — всего нужно шесть, из них два для квестов, доступных сейчас
             QuestText = n.QuestCount > 0
@@ -1371,10 +1409,17 @@ public partial class MainWindow : Window
                     : "")
                 : "";
             BarterText = n.BarterUses > 0 ? n.BarterUses.ToString() : "";
-            var flea = n.Item.LastLowPrice is > 0 ? n.Item.LastLowPrice : n.Item.Avg24hPrice;
-            PriceText = flea is > 0 ? flea.Value.ToString("N0") : "";
-            TraderPriceText = n.Item.TraderSellPrice is > 0
-                ? $"{n.Item.TraderSellPrice:N0} ({n.Item.TraderSellName})"
+
+            // У вариантов цены разные — показываем лучшую: строка отвечает на
+            // вопрос «сколько за это дадут», а какой именно жетон нести,
+            // видно в окне подробностей.
+            var flea = variants.Select(FleaPrice).Max();
+            PriceText = flea > 0 ? flea.ToString("N0") : "";
+            var best = variants
+                .OrderByDescending(v => v.Item.TraderSellPrice ?? 0)
+                .First().Item;
+            TraderPriceText = best.TraderSellPrice is > 0
+                ? $"{best.TraderSellPrice:N0} ({best.TraderSellName})"
                 : "";
             // Обмены в источники не пишем: их десятки на предмет, столбец
             // станет нечитаемым. Но если других причин нет, строка осталась бы
@@ -1389,13 +1434,12 @@ public partial class MainWindow : Window
             FirCount = n.QuestFirCount;
             HideoutCount = n.HideoutCount;
             BarterCount = n.BarterUses;
-            Price = flea ?? 0;
-            TraderPrice = n.Item.TraderSellPrice ?? 0;
+            Price = flea;
+            TraderPrice = best.TraderSellPrice ?? 0;
 
             // Сколько уже лежит в схроне и сколько осталось найти. Без этого
             // список показывает полную потребность и заставляет держать
             // накопленное в голове.
-            ItemId = n.Item.Id;
             // Зачем предмет нужен и что из этого доступно уже сейчас: по этим
             // признакам список фильтруют галочки источников.
             HasQuest = n.HasQuest;
@@ -1404,9 +1448,10 @@ public partial class MainWindow : Window
             QuestNow = n.QuestNowCount > 0;
             HideoutNow = n.HideoutNowCount > 0;
             BarterNow = n.BarterNowUses > 0;
-            Have = App.Services.Progress.InStash(n.Item.Id);
+            ItemIds = variants.Select(v => v.Item.Id).ToList();
+            Have = ItemIds.Sum(App.Services.Progress.InStash);
             var need = n.QuestCount + n.HideoutCount;
-            Left = LeftToFind(n);
+            Left = LeftToFind(n, ItemIds);
             HaveText = Have > 0 ? Have.ToString() : "";
             LeftText = need > 0 ? Left.ToString() : "";
             Enough = need > 0 && Left == 0;
@@ -1416,13 +1461,50 @@ public partial class MainWindow : Window
                 QuestText += $" из {n.Options}";
         }
 
+        /// <summary>
+        /// Сводит потребности всех вариантов в одну запись. Складывать их
+        /// нельзя: «45 жетонов любых» записаны каждому варианту отдельно, и
+        /// сумма дала бы вместо сорока пяти четыреста. Берём столько
+        /// одинаковых причин, сколько их было у одного варианта.
+        /// </summary>
+        private static ItemNeeds Merge(List<ItemNeeds> variants)
+        {
+            if (variants.Count == 1) return variants[0];
+
+            var merged = new ItemNeeds { Item = variants[0].Item };
+            var most = new Dictionary<string, int>();
+            foreach (var variant in variants)
+            {
+                var here = new Dictionary<string, int>();
+                foreach (var need in variant.Needs)
+                {
+                    var key = string.Join('|', need.Kind, need.Source, need.GroupKey,
+                        need.Count, need.FoundInRaid, need.Available, need.Options);
+                    var seen = here.GetValueOrDefault(key) + 1;
+                    here[key] = seen;
+                    if (seen <= most.GetValueOrDefault(key)) continue;
+                    most[key] = seen;
+                    merged.Needs.Add(need);
+                }
+            }
+            return merged;
+        }
+
+        private static int FleaPrice(ItemNeeds n) =>
+            n.Item.LastLowPrice is > 0 ? n.Item.LastLowPrice.Value
+            : n.Item.Avg24hPrice is > 0 ? n.Item.Avg24hPrice.Value : 0;
+
         /// <summary>Первые несколько подписей и «и ещё N» — столбец узкий.</summary>
         private static string ShortList(List<string> all, int limit) =>
             all.Count <= limit
                 ? string.Join(";  ", all)
                 : string.Join(";  ", all.Take(limit)) + $";  и ещё {all.Count - limit}";
 
-        public string ItemId { get; }
+        /// <summary>Записи базы, слитые в эту строку: обычно одна.</summary>
+        public List<ItemNeeds> Variants { get; }
+        /// <summary>Сведённые потребности — их показывает окно подробностей.</summary>
+        public ItemNeeds Needs { get; }
+        public List<string> ItemIds { get; }
         public bool HasQuest { get; }
         public bool HasHideout { get; }
         public bool HasBarter { get; }

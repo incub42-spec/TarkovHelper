@@ -100,7 +100,10 @@
                 <!-- клик по заголовку сортирует; ключ сортировки берётся из
                      привязки столбца, см. SortKeyFor в коде -->
                 <ListView x:Name="ItemsList" Background="White" Foreground="#FF15181B"
-                          GridViewColumnHeader.Click="OnColumnHeaderClick">
+                          GridViewColumnHeader.Click="OnColumnHeaderClick"
+                          MouseDoubleClick="OnItemRowActivated"
+                          KeyDown="OnItemListKeyDown"
+                          ToolTip="Двойной клик по строке — все квесты, постройки и обмены, ради которых предмет нужен">
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Предмет" Width="330"
