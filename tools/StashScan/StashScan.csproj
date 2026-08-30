@@ -7,18 +7,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>StashScan</AssemblyName>
     <RootNamespace>StashScan</RootNamespace>
-    <UseWindowsForms>false</UseWindowsForms>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- разбору нужны только картинки WPF, окон тут нет -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!-- берём боевой разбор: проверяем ровно то, что стоит за кнопкой -->
   <ItemGroup>
     <Compile Include="..\..\TarkovHelper\Models\GameData.cs" Link="GameData.cs" />
     <Compile Include="..\..\TarkovHelper\Models\Progress.cs" Link="Progress.cs" />
     <Compile Include="..\..\TarkovHelper\Models\Need.cs" Link="Need.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <Compile Include="..\..\TarkovHelper\Services\StashScanner.cs" Link="StashScanner.cs" />
+    <Compile Include="..\..\TarkovHelper\Services\YandexOcr.cs" Link="YandexOcr.cs" />
   </ItemGroup>
 
 </Project>

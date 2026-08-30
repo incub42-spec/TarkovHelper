@@ -143,7 +143,8 @@ public static class ScreenOcr
             if (cloud is { Count: > 0 })
             {
                 LastUsedCloud = true;
-                return cloud.Select(l => new Line(l.Text, x + l.X / scale, y + l.Y / scale)).ToList();
+                return cloud.Select(l => new Line(l.Text, x + l.Left / scale, y + l.Top / scale))
+                    .ToList();
             }
         }
 

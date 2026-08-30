@@ -41,8 +41,20 @@ public static class YandexOcr
     /// Распознаёт PNG и возвращает строки с координатами в пикселях картинки.
     /// Возвращает null, если сервис недоступен — тогда работает встроенный OCR.
     /// </summary>
-    public static async Task<List<ScreenOcr.Line>?> RecognizeAsync(
+    public static async Task<List<Word>?> RecognizeAsync(
         byte[] png, AppSettingsView settings, CancellationToken ct = default)
+    {
+        var json = await RequestAsync(png, settings, ct);
+        if (json == null) return null;
+
+        var lines = Parse(json);
+        LastError = lines.Count == 0 ? "в ответе нет текста" : null;
+        return lines;
+    }
+
+    /// <summary>Один запрос к сервису. null — не настроено, частим или ошибка.</summary>
+    private static async Task<string?> RequestAsync(
+        byte[] png, AppSettingsView settings, CancellationToken ct)
     {
         if (!IsConfigured(settings)) return null;
 
@@ -84,9 +96,7 @@ public static class YandexOcr
                 return null;
             }
 
-            var lines = Parse(text);
-            LastError = lines.Count == 0 ? "в ответе нет текста" : null;
-            return lines;
+            return text;
         }
         catch (Exception ex)
         {
@@ -95,13 +105,67 @@ public static class YandexOcr
         }
     }
 
+    /// <summary>Слово с полной рамкой — для разбора сеток, где важен край ячейки.</summary>
+    public sealed record Word(string Text, double Left, double Top, double Right, double Bottom);
+
+    /// <summary>
+    /// То же распознавание, но словами и с полными рамками. Строку целиком OCR
+    /// охотно сшивает из подписей соседних ячеек, и по её рамке уже не понять,
+    /// где кончается один предмет.
+    /// </summary>
+    public static async Task<List<Word>?> RecognizeWordsAsync(
+        byte[] png, AppSettingsView settings, CancellationToken ct = default)
+    {
+        var json = await RequestAsync(png, settings, ct);
+        if (json == null) return null;
+
+        var result = new List<Word>();
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("result", out var root)) return result;
+        if (!root.TryGetProperty("textAnnotation", out var annotation)) return result;
+        if (!annotation.TryGetProperty("blocks", out var blocks) ||
+            blocks.ValueKind != JsonValueKind.Array) return result;
+
+        foreach (var block in blocks.EnumerateArray())
+        {
+            if (!block.TryGetProperty("lines", out var lines) ||
+                lines.ValueKind != JsonValueKind.Array) continue;
+
+            foreach (var line in lines.EnumerateArray())
+            {
+                if (!line.TryGetProperty("words", out var words) ||
+                    words.ValueKind != JsonValueKind.Array) continue;
+
+                foreach (var word in words.EnumerateArray())
+                {
+                    var text = word.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+                    if (text.Length == 0) continue;
+                    if (!word.TryGetProperty("boundingBox", out var box) ||
+                        !box.TryGetProperty("vertices", out var vertices) ||
+                        vertices.ValueKind != JsonValueKind.Array) continue;
+
+                    double x0 = double.MaxValue, y0 = double.MaxValue, x1 = 0, y1 = 0;
+                    foreach (var v in vertices.EnumerateArray())
+                    {
+                        var x = Num(v, "x");
+                        var y = Num(v, "y");
+                        x0 = Math.Min(x0, x); y0 = Math.Min(y0, y);
+                        x1 = Math.Max(x1, x); y1 = Math.Max(y1, y);
+                    }
+                    result.Add(new Word(text.Trim(), x0, y0, x1, y1));
+                }
+            }
+        }
+        return result;
+    }
+
     /// <summary>
     /// Ответ приходит блоками и строками; у каждой строки — рамка из четырёх
     /// вершин. Нам нужен её левый верхний угол.
     /// </summary>
-    private static List<ScreenOcr.Line> Parse(string json)
+    private static List<Word> Parse(string json)
     {
-        var result = new List<ScreenOcr.Line>();
+        var result = new List<Word>();
         using var doc = JsonDocument.Parse(json);
 
         if (!doc.RootElement.TryGetProperty("result", out var root)) return result;
@@ -134,7 +198,8 @@ public static class YandexOcr
                     }
                 }
 
-                result.Add(new ScreenOcr.Line(text, x, y));
+
+                result.Add(new Word(text, x, y, x, y));
             }
         }
         return result;

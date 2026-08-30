@@ -1,0 +1,61 @@
+<Window x:Class="TarkovHelper.StashScanWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="app.ico"
+        Title="Схрон по скриншотам"
+        Width="900" Height="640"
+        Background="#FFF7F8FA" Foreground="#FF15181B"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="12">
+        <TextBlock x:Name="TxtStatus" DockPanel.Dock="Top" TextWrapping="Wrap"
+                   FontWeight="SemiBold" FontSize="14"/>
+        <TextBlock x:Name="TxtSummary" DockPanel.Dock="Top" TextWrapping="Wrap"
+                   Margin="0,6,0,0" Opacity="0.8"/>
+        <ProgressBar x:Name="Bar" DockPanel.Dock="Top" Height="6" Margin="0,10,0,0"
+                     IsIndeterminate="True"/>
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button x:Name="BtnCancel" DockPanel.Dock="Right" Width="110" Margin="8,0,0,0"
+                    Content="Отмена" IsCancel="True" Click="OnCancelClick"/>
+            <Button x:Name="BtnAdd" DockPanel.Dock="Right" Width="150" Margin="8,0,0,0"
+                    Content="Добавить к схрону" IsEnabled="False" Click="OnAddClick"
+                    ToolTip="Прибавить найденное к тому, что уже отмечено"/>
+            <Button x:Name="BtnReplace" DockPanel.Dock="Right" Width="150"
+                    Content="Заменить схрон" IsEnabled="False" Click="OnReplaceClick"
+                    IsDefault="True"
+                    ToolTip="Стереть прежнюю опись и записать найденное"/>
+            <TextBlock x:Name="TxtHint" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Opacity="0.75"/>
+        </DockPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="Найдено" FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <ListView x:Name="ListFound" Background="White" Foreground="#FF15181B">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Предмет" Width="380"
+                                            DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Штук" Width="80"
+                                            DisplayMemberBinding="{Binding Count}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+
+            <DockPanel Grid.Column="2" Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="Не опознано" FontWeight="SemiBold"
+                           Margin="0,0,0,4"
+                           ToolTip="Подписи, которых нет в базе: обрезанные имена, ники на жетонах, мусор распознавания"/>
+                <ListBox x:Name="ListUnknown" Background="White" Foreground="#FF15181B"/>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

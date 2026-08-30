@@ -1453,6 +1453,46 @@ public partial class MainWindow : Window
         if (IsLoaded) ApplyStashFilter();
     }
 
+    /// <summary>
+    /// Опись по скриншотам окна «Поиск предметов»: в самом схроне подписей нет,
+    /// только иконки, а в поиске игра подписывает каждую ячейку.
+    /// </summary>
+    private void OnStashScanClick(object sender, RoutedEventArgs e)
+    {
+        var settings = App.Services.Settings;
+        if (!settings.UseYandexOcr || string.IsNullOrWhiteSpace(settings.YandexOcrKey))
+        {
+            MessageBox.Show(this,
+                "Подписи в ячейках мелкие, и встроенный движок их не берёт. " +
+                "Включите облачное распознавание в настройках и укажите ключ.",
+                "Tarkov Helper", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Страницы окна «Поиск предметов»",
+            Filter = "Снимки экрана (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg",
+            Multiselect = true,
+            InitialDirectory = ScreenshotsFolder(),
+        };
+        if (dialog.ShowDialog(this) != true || dialog.FileNames.Length == 0) return;
+
+        var window = new StashScanWindow(dialog.FileNames) { Owner = this };
+        if (window.ShowDialog() == true) RefreshFromServices();
+    }
+
+    /// <summary>Куда игра кладёт снимки экрана: обычно «Документы».</summary>
+    private static string ScreenshotsFolder()
+    {
+        var docs = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "Escape from Tarkov", "Screenshots");
+        return Directory.Exists(docs)
+            ? docs
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+    }
+
     private void OnStashPlusClick(object sender, RoutedEventArgs e) => ChangeStash(sender, +1);
 
     private void OnStashMinusClick(object sender, RoutedEventArgs e) => ChangeStash(sender, -1);
