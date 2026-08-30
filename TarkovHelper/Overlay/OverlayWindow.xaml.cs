@@ -369,6 +369,8 @@ public partial class OverlayWindow : Window
                     {
                         lines.Add(($"✓ {trader}: отмечено сданными {marked.Count} — " +
                                    "их нет в списке игры", OkBrush));
+                        lines.Add(("Проверьте список: задания выдаются пачками, " +
+                                   "и не выданные тоже не видны", MutedBrush));
                         foreach (var q in marked.Take(6))
                             lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
                         if (marked.Count > 6)
@@ -394,6 +396,10 @@ public partial class OverlayWindow : Window
                         lines.Add(($"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)}" +
                                    " — отметить их сданными (список должен быть виден целиком)",
                             MutedBrush));
+                        // с 1.1.0 торговец выдаёт задания пачками по 2–4, и
+                        // невыданные в списке не показываются вовсе
+                        lines.Add(("Осторожно: торговец выдаёт задания пачками, " +
+                                   "не выданные тоже не видны", MutedBrush));
                     }
                 }
             }
