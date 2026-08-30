@@ -178,6 +178,22 @@ public sealed class ItemMatcher
         return common >= 5 && common * 10 >= Math.Min(a.Length, b.Length) * 6;
     }
 
+    /// <summary>
+    /// Похожесть двух строк от 0 до 1 (нормализация + Левенштейн). Вынесено
+    /// наружу для сопоставления названий квестов, прочитанных с экрана.
+    /// </summary>
+    public static double Similarity(string a, string b)
+    {
+        var x = Normalize(a);
+        var y = Normalize(b);
+        if (x.Length == 0 || y.Length == 0) return 0;
+        if (x == y) return 1;
+
+        var maxLen = Math.Max(x.Length, y.Length);
+        var dist = Levenshtein(x, y, maxLen);
+        return dist < 0 ? 0 : 1.0 - (double)dist / maxLen;
+    }
+
     private static string Digits(string s) =>
         new(s.Where(char.IsDigit).ToArray());
 

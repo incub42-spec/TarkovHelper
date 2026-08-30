@@ -61,9 +61,26 @@ public partial class MainWindow : Window
             "скажет и ничего не запишет. Станции, которых в панели нет (например «Стена», когда " +
             "проход за ней открыт), достраиваются сами по условиям постройки других станций.";
 
+        var questKey = HotkeyNames.Describe(s.Settings.QuestHotkey);
+        BtnQuestHotkey.Content = questKey;
+        TxtQuestHelpTitle.Text = $"{questKey} — список квестов торговца:";
+        TxtQuestHelp.Text =
+            "1. Откройте торговца, вкладку «Задания»." + Environment.NewLine +
+            "2. Включите галочку «Завершенные» — игра покажет сданные квесты." + Environment.NewLine +
+            $"3. Нажмите {questKey}; прокрутите список и нажмите ещё раз." +
+            Environment.NewLine + Environment.NewLine +
+            "Прочитанные названия отмечаются выполненными. Игра нигде не хранит на диске, " +
+            "что сдано, а в логах уведомления о сдаче живут недолго — список на экране " +
+            "единственный полный источник. Если отсканировали не тот список, отметки " +
+            "снимаются кнопкой отката на вкладке «Квесты».";
+
         TxtOcrStatus.Text = ScreenOcr.IsAvailable
             ? $"Windows OCR готов (язык: {ScreenOcr.EngineDescription})."
             : "Windows OCR недоступен — установите языковой пакет в Параметрах Windows.";
+
+        var scanned = App.Services.LastQuestScan.Count;
+        BtnUndoScan.Visibility = scanned > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BtnUndoScan.Content = $"Откатить сканирование ({scanned})";
 
         RebuildItemRows();
         RebuildQuestRows();
@@ -359,90 +376,77 @@ public partial class MainWindow : Window
     }
 
     private void OnItemHotkeyClick(object sender, RoutedEventArgs e) =>
-        CaptureHotkey(BtnItemHotkey, isItem: true);
+        CaptureHotkey(BtnItemHotkey, key =>
+        {
+            App.Services.Settings.ItemHotkey = key;
+            SaveHotkeys();
+        });
+
+    private void OnQuestHotkeyClick(object sender, RoutedEventArgs e) =>
+        CaptureHotkey(BtnQuestHotkey, key =>
+        {
+            App.Services.Settings.QuestHotkey = key;
+            SaveHotkeys();
+        });
 
     private void OnHideoutHotkeyClick(object sender, RoutedEventArgs e) =>
-        CaptureHotkey(BtnHideoutHotkey, isItem: false);
+        CaptureHotkey(BtnHideoutHotkey, key =>
+        {
+            App.Services.Settings.HideoutHotkey = key;
+            SaveHotkeys();
+        });
+
+    /// <summary>Сохраняет клавиши и перерегистрирует их в оверлее.</summary>
+    private void SaveHotkeys()
+    {
+        App.Services.SaveProgress();
+        OverlayWindow.Current?.ApplyHotkeys();
+        RefreshFromServices();
+    }
 
     /// <summary>
     /// Ждёт нажатия клавиши и назначает её на сканирование. Пока кнопка «слушает»,
     /// она подписана «нажмите клавишу…»; Esc отменяет назначение.
     /// </summary>
-    private void CaptureHotkey(Button button, bool isItem)
+    private void CaptureHotkey(Button button, Action<uint> assign)
     {
         var previous = button.Content;
         button.Content = "нажмите клавишу…";
-        button.Focus();
 
-        System.Windows.Input.KeyEventHandler? onKey = null;
-        System.Windows.Input.MouseButtonEventHandler? onMouse = null;
-
-        void Stop()
+        void Finish()
         {
-            button.PreviewKeyDown -= onKey;
-            button.PreviewMouseDown -= onMouse;
+            button.PreviewKeyDown -= OnKey;
+            button.PreviewMouseDown -= OnMouse;
             button.Content = previous;
         }
 
-        void Assign(uint vk)
+        void Apply(uint key)
         {
-            var p = App.Services.Settings;
-            if (isItem) p.ItemHotkey = vk; else p.HideoutHotkey = vk;
-            App.Services.SaveProgress();
-
-            OverlayWindow.Current?.ApplyHotkeys();
-            RefreshFromServices();
-
-            var registered = isItem
-                ? OverlayWindow.HotkeyRegistered
-                : OverlayWindow.HideoutHotkeyRegistered;
-            if (!registered)
-            {
-                MessageBox.Show(this,
-                    $"Клавиша {HotkeyNames.Describe(vk)} занята другим приложением — " +
-                    "выберите другую.",
-                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            Finish();
+            assign(key);
         }
 
-        onKey = (_, args) =>
+        void OnKey(object? sender, System.Windows.Input.KeyEventArgs e)
         {
-            args.Handled = true;
-            // системные клавиши приходят как Key.System, реальная лежит в SystemKey
-            var key = args.Key == System.Windows.Input.Key.System ? args.SystemKey : args.Key;
-            Stop();
+            e.Handled = true;
+            if (e.Key == System.Windows.Input.Key.Escape) { Finish(); return; }
+            if (HotkeyNames.IsForbidden(e.Key)) return;
 
-            if (key == System.Windows.Input.Key.Escape) return;
-            if (HotkeyNames.IsForbidden(key))
-            {
-                MessageBox.Show(this,
-                    "Эту клавишу назначить нельзя: модификаторы и системные клавиши " +
-                    "(Esc, Tab, Enter, Win, Caps Lock) сломают управление игрой и Windows.",
-                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            Assign(HotkeyNames.ToVirtualKey(key));
-        };
+            var vk = HotkeyNames.ToVirtualKey(e.Key);
+            if (vk != 0) Apply(vk);
+        }
 
-        onMouse = (_, args) =>
+        void OnMouse(object? sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            args.Handled = true;
-            var vk = HotkeyNames.FromMouseButton(args.ChangedButton);
-            Stop();
+            var vk = HotkeyNames.FromMouseButton(e.ChangedButton);
+            if (vk == 0) return;   // левая и правая заняты игрой
+            e.Handled = true;
+            Apply(vk);
+        }
 
-            if (vk == 0)
-            {
-                MessageBox.Show(this,
-                    "Доступны только колёсико и боковые кнопки мыши: левая и правая " +
-                    "заняты стрельбой и прицеливанием в игре.",
-                    "Горячая клавиша", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            Assign(vk);
-        };
-
-        button.PreviewKeyDown += onKey;
-        button.PreviewMouseDown += onMouse;
+        button.PreviewKeyDown += OnKey;
+        button.PreviewMouseDown += OnMouse;
+        button.Focus();
     }
 
     // ---------- вкладка «Квесты» ----------
@@ -526,6 +530,16 @@ public partial class MainWindow : Window
                 r.Trader.Contains(q, StringComparison.OrdinalIgnoreCase));
         QuestsList.ItemsSource = rows.ToList();
         ApplySort(QuestsList, _questsSort); // список пересобран — сортировку вернуть
+    }
+
+    /// <summary>Откат массовой отметки: ошибиться сканированием списка легко.</summary>
+    private void OnUndoQuestScanClick(object sender, RoutedEventArgs e)
+    {
+        var count = App.Services.UndoQuestScan();
+        if (count > 0)
+            MessageBox.Show(this, $"Снято отметок: {count}.", "Сканирование квестов",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        RefreshFromServices();
     }
 
     private void OnQuestFilterChanged(object sender, RoutedEventArgs e)

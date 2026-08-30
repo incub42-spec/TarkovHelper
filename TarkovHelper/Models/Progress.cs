@@ -130,6 +130,8 @@ public sealed class AppSettings
     public uint ItemHotkey { get; set; } = 0x78;
     /// <summary>Клавиша сканирования убежища. F10 по умолчанию.</summary>
     public uint HideoutHotkey { get; set; } = 0x79;
+    /// <summary>Клавиша сканирования списка квестов у торговца. F11 по умолчанию.</summary>
+    public uint QuestHotkey { get; set; } = 0x7A;
 
     /// <summary>Имя активного профиля.</summary>
     public string ActiveProfile { get; set; } = "";

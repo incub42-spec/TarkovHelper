@@ -98,6 +98,9 @@
                     <Button x:Name="BtnAllQuests" DockPanel.Dock="Right" Width="140" Margin="0,0,12,0"
                             Content="Все квесты…" Click="OnShowAllQuestsClick"
                             ToolTip="Полный список, включая закрытые и выполненные"/>
+                    <Button x:Name="BtnUndoScan" DockPanel.Dock="Right" Width="210" Margin="0,0,12,0"
+                            Visibility="Collapsed" Click="OnUndoQuestScanClick"
+                            ToolTip="Снять отметки, поставленные последним сканированием списка"/>
                     <Button x:Name="BtnTraders" DockPanel.Dock="Right" Width="130" Margin="0,0,12,0"
                             Content="Торговцы…" Click="OnTradersClick"
                             ToolTip="Уровни лояльности и репутация: по ним отсекаются квесты, которых торговец пока не даёт"/>
@@ -278,6 +281,11 @@
                     <Button x:Name="BtnHideoutHotkey" Width="150" Content="F10"
                             Click="OnHideoutHotkeyClick"/>
                 </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="Список квестов:" Width="180" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnQuestHotkey" Width="150" Content="F11"
+                            Click="OnQuestHotkeyClick"/>
+                </StackPanel>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
                            Text="Нажмите кнопку, затем любую клавишу или кнопку мыши (колёсико, боковые), чтобы переназначить. Esc отменяет. Выбирайте то, что не используется в игре: клавиша перехватывается глобально, а кнопка мыши работает параллельно с игровым действием."/>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
@@ -292,6 +300,9 @@
                 <TextBlock x:Name="TxtHideoutHelpTitle" Margin="0,8,0,0" TextWrapping="Wrap"
                            FontWeight="SemiBold"/>
                 <TextBlock x:Name="TxtHideoutHelp" Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
+                <TextBlock x:Name="TxtQuestHelpTitle" Margin="0,8,0,0" TextWrapping="Wrap"
+                           FontWeight="SemiBold"/>
+                <TextBlock x:Name="TxtQuestHelp" Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
                 <TextBlock x:Name="TxtOcrStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </TabItem>

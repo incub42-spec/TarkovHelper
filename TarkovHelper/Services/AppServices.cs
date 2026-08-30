@@ -115,6 +115,43 @@ public sealed class AppServices
         RestartWatcher();
     }
 
+    /// <summary>
+    /// Квесты, отмеченные последним сканированием списка. Хранится, чтобы
+    /// массовую отметку можно было откатить одним действием: ошибиться тут
+    /// легко — достаточно отсканировать список активных вместо завершённых.
+    /// </summary>
+    public List<Quest> LastQuestScan { get; private set; } = new();
+
+    /// <summary>Отмечает квесты выполненными; возвращает только реально добавленные.</summary>
+    public List<Quest> MarkQuestsCompleted(IEnumerable<Quest> quests)
+    {
+        var added = quests.Where(q => Progress.CompletedQuests.Add(q.Id)).ToList();
+        foreach (var q in added)
+            Progress.QuestCheckedUtc[q.Id] = DateTime.UtcNow;
+
+        if (added.Count > 0)
+        {
+            LastQuestScan = added;
+            SaveProgress();
+        }
+        return added;
+    }
+
+    /// <summary>Откат последнего сканирования списка квестов.</summary>
+    public int UndoQuestScan()
+    {
+        var count = 0;
+        foreach (var q in LastQuestScan)
+        {
+            if (!Progress.CompletedQuests.Remove(q.Id)) continue;
+            Progress.QuestCheckedUtc.Remove(q.Id);
+            count++;
+        }
+        LastQuestScan = new List<Quest>();
+        if (count > 0) SaveProgress();
+        return count;
+    }
+
     public void RebuildIndex()
     {
         if (Data != null)
