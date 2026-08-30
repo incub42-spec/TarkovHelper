@@ -138,11 +138,11 @@ internal static partial class QuestMatcher
         public bool IsAvailableList => Completed.Count == 0 && Total >= 3;
 
         /// <summary>
-        /// Список уместился в кадр целиком. Если строки доходят до нижнего
-        /// края, снизу почти наверняка есть ещё — и тогда отсутствие квеста
-        /// в кадре не значит ничего: он может быть просто ниже.
+        /// Список уместился в кадр целиком. Если строки со статусом доходят до
+        /// нижнего края, снизу почти наверняка есть ещё — и тогда отсутствие
+        /// квеста в кадре не значит ничего: он может быть просто ниже.
         /// </summary>
-        public bool ListFitsFrame => Area.H <= 0 || LastRowY < Area.H * 0.88;
+        public bool ListFitsFrame => Area.H <= 0 || LastRowY < Area.H * 0.9;
 
         /// <summary>
         /// Строки со статусом, которые не удалось привязать к квесту базы.
@@ -332,7 +332,12 @@ internal static partial class QuestMatcher
             area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),
-            rows.Count == 0 ? 0 : rows[^1].Y);
+            // Конец списка ищем по статусам: они стоят только у строк списка.
+            // По самому нижнему ряду считать нельзя — в кадр попадают и
+            // карточка квеста справа, и версия клиента в углу экрана, а они
+            // всегда у нижнего края.
+            doneMarks.Concat(activeMarks).Concat(failedMarks).Concat(newMarks)
+                .Select(m => m.Y).DefaultIfEmpty(0).Max());
     }
 
     private static int? PartNumber(IEnumerable<string> texts)
