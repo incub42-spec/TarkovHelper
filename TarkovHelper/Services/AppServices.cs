@@ -137,6 +137,17 @@ public sealed class AppServices
         return added;
     }
 
+    /// <summary>
+    /// Отмечает квесты проваленными. У большинства провал окончательный, так
+    /// что их лут больше не нужен; перезапускаемые остаются в доступных.
+    /// </summary>
+    public int MarkQuestsFailed(IEnumerable<Quest> quests)
+    {
+        var count = quests.Count(q => Progress.FailedQuests.Add(q.Id));
+        if (count > 0) SaveProgress();
+        return count;
+    }
+
     /// <summary>Откат последнего сканирования списка квестов.</summary>
     public int UndoQuestScan()
     {

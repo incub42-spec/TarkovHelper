@@ -75,6 +75,12 @@ public sealed class Quest
     /// </summary>
     public List<TraderCondition> TraderConditions { get; set; } = new();
 
+    /// <summary>
+    /// Проваленный квест можно взять заново. Таких мало (16 из 514), у
+    /// остальных провал окончательный — квест уже не сдать.
+    /// </summary>
+    public bool Restartable { get; set; }
+
     /// <summary>Текст задания от торговца (из локали; у новых квестов пусто).</summary>
     public string Description { get; set; } = "";
     /// <summary>Что нужно сделать — все цели, а не только «принести предметы».</summary>
@@ -154,7 +160,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 3;
+    public const int CurrentSchema = 4;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

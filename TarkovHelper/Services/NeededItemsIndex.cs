@@ -32,6 +32,8 @@ public sealed class NeededItemsIndex
         foreach (var quest in data.Quests)
         {
             if (progress.CompletedQuests.Contains(quest.Id)) continue;
+            // проваленный уже не сдать, если он не перезапускаемый — лут не нужен
+            if (progress.FailedQuests.Contains(quest.Id) && !quest.Restartable) continue;
             if (!progress.Fits(quest.Faction)) continue; // квест чужой фракции не выдадут
 
             // Квест из середины цепочки торговец пока не выдаст, значит и лут

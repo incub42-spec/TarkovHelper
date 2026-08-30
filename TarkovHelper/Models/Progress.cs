@@ -31,6 +31,12 @@ public sealed class Progress
     /// <summary>Репутация у торговца; бывает отрицательной (Скупщик).</summary>
     public Dictionary<string, double> TraderRep { get; set; } = new();
     public HashSet<string> CompletedQuests { get; set; } = new();
+    /// <summary>
+    /// Проваленные квесты. Не сданы и не в работе: у большинства провал
+    /// окончательный, поэтому ни в доступных им делать нечего, ни лут для них
+    /// собирать не нужно.
+    /// </summary>
+    public HashSet<string> FailedQuests { get; set; } = new();
     /// <summary>Ид станции убежища -> построенный уровень (0 = не построено).</summary>
     public Dictionary<string, int> HideoutLevels { get; set; } = new();
 
@@ -66,6 +72,7 @@ public sealed class Progress
     /// </summary>
     public bool IsAvailable(Quest quest) =>
         !CompletedQuests.Contains(quest.Id) &&
+        (!FailedQuests.Contains(quest.Id) || quest.Restartable) &&
         quest.Requires.All(CompletedQuests.Contains) &&
         (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel) &&
         !LockedTraders.Contains(quest.TraderName) &&

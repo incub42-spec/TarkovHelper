@@ -287,6 +287,7 @@ public partial class OverlayWindow : Window
             }
 
             var added = App.Services.MarkQuestsCompleted(result.Completed);
+            var failed = App.Services.MarkQuestsFailed(result.Failed);
             var lines = new List<(string, System.Windows.Media.Brush)>
             {
                 added.Count > 0
@@ -297,6 +298,9 @@ public partial class OverlayWindow : Window
                 lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
             if (added.Count > 6)
                 lines.Add(($"…и ещё {added.Count - 6}", MutedBrush));
+
+            if (failed > 0)
+                lines.Add(($"Отмечено проваленными: {failed}", FailBrush));
 
             // активные не трогаем: они в работе, а не сданы
             if (result.Active.Count > 0)

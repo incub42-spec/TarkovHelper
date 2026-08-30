@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.RegularExpressions;
 using TarkovHelper.Models;
 using static TarkovHelper.Interop.NativeMethods;
@@ -20,10 +20,10 @@ internal static partial class QuestScanner
     /// статусом «активно!», Unknown — название узнали, а статуса в строке нет.
     /// </summary>
     public sealed record Result(
-        List<Quest> Completed, List<Quest> Active, List<Quest> Unknown,
+        List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> Unknown,
         Region Area, int LinesRead)
     {
-        public int Total => Completed.Count + Active.Count + Unknown.Count;
+        public int Total => Completed.Count + Active.Count + Failed.Count + Unknown.Count;
     }
 
     [GeneratedRegex("(?i)заверш|выполн|complet")]
@@ -31,6 +31,9 @@ internal static partial class QuestScanner
 
     [GeneratedRegex("(?i)активн|active")]
     private static partial Regex ActiveRegex();
+
+    [GeneratedRegex("(?i)провал|fail")]
+    private static partial Regex FailedRegex();
 
     /// <summary>
     /// Читает левую колонку со списком заданий. Игра показывает завершённые и
@@ -56,14 +59,17 @@ internal static partial class QuestScanner
 
         var doneMarks = new List<(double X, double Y)>();
         var activeMarks = new List<(double X, double Y)>();
+        var failedMarks = new List<(double X, double Y)>();
         foreach (var l in lines)
         {
-            if (DoneRegex().IsMatch(l.Text)) doneMarks.Add((l.X, l.Y));
+            if (FailedRegex().IsMatch(l.Text)) failedMarks.Add((l.X, l.Y));
+            else if (DoneRegex().IsMatch(l.Text)) doneMarks.Add((l.X, l.Y));
             else if (ActiveRegex().IsMatch(l.Text)) activeMarks.Add((l.X, l.Y));
         }
 
         var completed = new List<Quest>();
         var active = new List<Quest>();
+        var failed = new List<Quest>();
         var unknown = new List<Quest>();
         var seen = new HashSet<string>();
         var debug = new System.Text.StringBuilder();
@@ -72,7 +78,8 @@ internal static partial class QuestScanner
         {
             var text = line.Text.Trim();
             if (text.Length < 5) continue;
-            if (DoneRegex().IsMatch(text) || ActiveRegex().IsMatch(text)) continue;
+            if (DoneRegex().IsMatch(text) || ActiveRegex().IsMatch(text) ||
+                FailedRegex().IsMatch(text)) continue;
 
             Quest? best = null;
             var bestScore = 0.0;
@@ -87,14 +94,18 @@ internal static partial class QuestScanner
             const double rowTolerance = 22;
             var isDone = doneMarks.Any(m => Math.Abs(m.Y - line.Y) <= rowTolerance && m.X > line.X);
             var isActive = activeMarks.Any(m => Math.Abs(m.Y - line.Y) <= rowTolerance && m.X > line.X);
-            var status = isActive ? "активен" : isDone ? "завершён" : "без статуса";
+            var isFailed = failedMarks.Any(m => Math.Abs(m.Y - line.Y) <= rowTolerance && m.X > line.X);
+            var status = isFailed ? "провален"
+                : isActive ? "активен"
+                : isDone ? "завершён" : "без статуса";
 
             debug.AppendLine($"  x={line.X,5:F0} y={line.Y,5:F0} | {text}" +
                              $"  => {(best == null ? "нет" : best.Name)} ({bestScore:F2}, {status})");
 
             if (best == null || bestScore < 0.78 || !seen.Add(best.Id)) continue;
 
-            if (isActive) active.Add(best);
+            if (isFailed) failed.Add(best);
+            else if (isActive) active.Add(best);
             else if (isDone) completed.Add(best);
             else unknown.Add(best);
         }
@@ -103,7 +114,7 @@ internal static partial class QuestScanner
                     $"строк={lines.Count} завершено={completed.Count} активных={active.Count} " +
                     $"без статуса={unknown.Count}\n" + debug);
 
-        return new Result(completed, active, unknown, new Region(x, y, w, h), lines.Count);
+        return new Result(completed, active, failed, unknown, new Region(x, y, w, h), lines.Count);
     }
 
     private static void AppendDebug(string text)

@@ -626,6 +626,12 @@ public partial class MainWindow : Window
                 ? "Цепочка перед ним пройдена."
                 : "";
 
+        if (App.Services.Progress.FailedQuests.Contains(q.Id))
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  (q.Restartable
+                                      ? "Провален, но его можно взять заново."
+                                      : "Провален — этот квест уже не сдать.");
+
         if (App.Services.Progress.LockedTraders.Contains(q.TraderName))
             TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
                                   $"{q.TraderName} ещё не открыт.";
@@ -962,12 +968,15 @@ public partial class MainWindow : Window
         /// <summary>Место квеста в цепочке: сдан, можно брать или ещё закрыт.</summary>
         public string Status => IsCompleted
             ? "выполнен"
-            : App.Services.Progress.IsAvailable(_quest) ? "доступен" : "закрыт";
+            : App.Services.Progress.FailedQuests.Contains(_quest.Id) && !_quest.Restartable
+                ? "провален"
+                : App.Services.Progress.IsAvailable(_quest) ? "доступен" : "закрыт";
 
         public Brush StatusBrush => Status switch
         {
             "доступен" => CheckedBrush,     // зелёный: можно брать прямо сейчас
             "закрыт" => UncheckedBrush,     // красный: цепочка не пройдена
+            "провален" => UncheckedBrush,   // уже не сдать, если не перезапускаемый
             _ => MutedTextBrush,
         };
 
