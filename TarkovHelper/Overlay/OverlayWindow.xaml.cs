@@ -415,14 +415,18 @@ public partial class OverlayWindow : Window
                 weighted.Add((pair, SoftWeight(Math.Min(Dist(a), Dist(b)))));
                 debug.AppendLine($"  join    | {pair}");
 
-                for (var k = j + 1; k < ordered.Count; k++)
+                // Третьей строкой пробуем все подходящие, а не только первую:
+                // кадр читают два движка, и первой снизу нередко оказывается
+                // мусорная строка, а нужный хвост названия — следующей.
+                var thirds = 0;
+                for (var k = j + 1; k < ordered.Count && thirds < 3; k++)
                 {
                     if (ordered[k].Y - b.Y > 55) break;
                     if (!NextRow(b, ordered[k])) continue;
                     weighted.Add((pair + " " + ordered[k].Text,
                         SoftWeight(Math.Min(Dist(a), Math.Min(Dist(b), Dist(ordered[k]))))));
                     debug.AppendLine($"  join3   | {pair} {ordered[k].Text}");
-                    break;
+                    thirds++;
                 }
             }
         }

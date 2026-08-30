@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OcrReplay</AssemblyName>
+    <RootNamespace>OcrReplay</RootNamespace>
+  </PropertyGroup>
+
+  <!-- берём боевые модель и матчер: проверяем ровно то, что работает в игре -->
+  <ItemGroup>
+    <Compile Include="..\..\TarkovHelper\Models\GameData.cs" Link="GameData.cs" />
+    <Compile Include="..\..\TarkovHelper\Services\ItemMatcher.cs" Link="ItemMatcher.cs" />
+  </ItemGroup>
+
+</Project>
