@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -29,8 +29,10 @@ var progress = JsonSerializer.Deserialize<Progress>(profileJson.GetRawText(), op
 Console.WriteLine($"база: {data.Quests.Count} квестов, профиль {progress.Name}, " +
                   $"выполнено {progress.CompletedQuests.Count}");
 
-// строки лога: «  x=   41 y=  249 | текст  => что вышло (0,50, статус)»
+// два формата лога: старый построчный «  x=  41 y=  249 | текст  => …»
+// и нынешний порядовый «  y=  249 | текст / текст  => …»
 var lineRegex = new Regex(@"^\s*x=\s*(-?\d+)\s+y=\s*(-?\d+)\s*\|\s*(.*?)\s+=>\s");
+var rowRegex = new Regex(@"^\s*y=\s*(-?\d+)\s*\|\s*(.*?)\s+=>\s");
 var blocks = new List<List<QuestMatcher.Line>>();
 List<QuestMatcher.Line>? current = null;
 var headers = new List<string>();
@@ -47,11 +49,21 @@ foreach (var raw in File.ReadLines(logPath))
     if (current == null) continue;
 
     var m = lineRegex.Match(raw);
-    if (!m.Success) continue;
-    current.Add(new QuestMatcher.Line(
-        m.Groups[3].Value,
-        double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture),
-        double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture)));
+    if (m.Success)
+    {
+        current.Add(new QuestMatcher.Line(
+            m.Groups[3].Value,
+            double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture),
+            double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture)));
+        continue;
+    }
+
+    // в порядовом формате координаты по X нет, а строки ряда записаны через «/»
+    var r = rowRegex.Match(raw);
+    if (!r.Success) continue;
+    var y = double.Parse(r.Groups[1].Value, CultureInfo.InvariantCulture);
+    foreach (var part in r.Groups[2].Value.Split(" / "))
+        current.Add(new QuestMatcher.Line(part.Trim(), 0, y));
 }
 
 // в новом формате лога координата одна на ряд — такие блоки прогонять нечего

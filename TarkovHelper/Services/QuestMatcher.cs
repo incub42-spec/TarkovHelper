@@ -42,7 +42,37 @@ internal static partial class QuestMatcher
     private static string WithoutPart(string name) => PartSuffixRegex().Replace(name, "").Trim();
 
     /// <summary>Ряд списка: все строки, прочитанные на одной высоте.</summary>
-    private sealed record Row(double X, double Y, List<string> Texts);
+    private sealed record Row(double X, double Y, List<string> Texts)
+    {
+        /// <summary>
+        /// Варианты для сравнения со штрафом за отрезанное начало. Перед
+        /// названием игра рисует иконку типа задания, и OCR читает её как
+        /// «ф», «-л», «...a'». На длинном названии такой мусор почти не
+        /// мешает, а на коротком решает: «-л Бункер» против «Бункер» — это
+        /// уже 0.75, ниже порога. Отрезаем начало, но чуть штрафуем, чтобы
+        /// целое совпадение всегда было важнее обрезанного.
+        /// </summary>
+        public IEnumerable<(string Text, double Penalty)> Variants
+        {
+            get
+            {
+                foreach (var text in Texts)
+                {
+                    yield return (text, 0);
+
+                    var rest = text;
+                    for (var i = 0; i < 2; i++)
+                    {
+                        var space = rest.IndexOf(' ');
+                        if (space <= 0 || space > 4) break;
+                        rest = rest[(space + 1)..].Trim();
+                        if (rest.Length < 4) break;
+                        yield return (rest, 0.01);
+                    }
+                }
+            }
+        }
+    }
 
     /// <summary>Ниже этого совпадение считаем случайным.</summary>
     private const double Threshold = 0.78;
@@ -145,20 +175,20 @@ internal static partial class QuestMatcher
                 if (rowPart != null && questPart != null && rowPart != questPart) continue;
 
                 var score = 0.0;
-                foreach (var text in row.Texts)
+                foreach (var (text, penalty) in row.Variants)
                 {
-                    score = Math.Max(score, Score(text, q, progress));
+                    score = Math.Max(score, Score(text, q, progress) - penalty);
                     // Номер части совпал — остаток можно сравнивать без хвоста:
                     // игра показывает название короче базы, а OCR теряет конец.
                     if (rowPart != null && rowPart == questPart)
                         score = Math.Max(score,
-                            Score(WithoutPart(text), q, progress, stripPart: true));
+                            Score(WithoutPart(text), q, progress, stripPart: true) - penalty);
                     // А порой игра показывает название вовсе без номера:
                     // «Бункер» вместо «Бункер. Часть 1». Тогда сравниваем с
                     // названием без хвоста, а какая это часть — решаем ниже.
                     else if (rowPart == null && questPart != null)
                         score = Math.Max(score,
-                            Score(text, q, progress, stripPart: true) - 0.02);
+                            Score(text, q, progress, stripPart: true) - 0.02 - penalty);
                 }
 
                 if (score >= Threshold) pairs.Add((row, q, score, questPart ?? 0));
