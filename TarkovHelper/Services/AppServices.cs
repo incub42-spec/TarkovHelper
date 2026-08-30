@@ -237,6 +237,44 @@ public sealed class AppServices
     /// </summary>
     private readonly Dictionary<string, HashSet<string>> _walk = new();
 
+    /// <summary>
+    /// Складывает нераспознанные строки торговца: их игрок свяжет с квестами
+    /// сам, во вкладке «Квесты». Копим без повторов и не больше сорока — это
+    /// подсказка, а не журнал.
+    /// </summary>
+    public void RememberUnmatched(string trader, IEnumerable<string> rows)
+    {
+        if (!Progress.UnmatchedRows.TryGetValue(trader, out var kept))
+            Progress.UnmatchedRows[trader] = kept = new List<string>();
+
+        var added = false;
+        foreach (var row in rows)
+        {
+            var text = row.Trim();
+            if (text.Length < 5 || kept.Contains(text)) continue;
+            if (kept.Count >= 40) kept.RemoveAt(0);
+            kept.Add(text);
+            added = true;
+        }
+        if (added) SaveProgress();
+    }
+
+    /// <summary>Связывает прочитанную строку с квестом: имя запомнится в профиле.</summary>
+    public void LinkUnmatched(string trader, string row, Quest quest)
+    {
+        Progress.QuestNames[quest.Id] = row.Trim();
+        if (Progress.UnmatchedRows.TryGetValue(trader, out var kept))
+            kept.RemoveAll(x => x == row);
+        SaveProgress();
+    }
+
+    /// <summary>Убирает строку из списка нераспознанных, ничего не связывая.</summary>
+    public void ForgetUnmatched(string trader, string row)
+    {
+        if (!Progress.UnmatchedRows.TryGetValue(trader, out var kept)) return;
+        if (kept.RemoveAll(x => x == row) > 0) SaveProgress();
+    }
+
     /// <summary>Добавляет кадр в обход; возвращает, сколько узнано всего.</summary>
     public int RememberSeenQuests(string trader, IEnumerable<Quest> shown)
     {

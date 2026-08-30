@@ -120,6 +120,7 @@ internal static partial class QuestMatcher
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
         List<Quest> Unknown, List<Quest> Ordered, Dictionary<string, int> Sections,
         Dictionary<string, string> ShortNames, HashSet<string> FullNames,
+        List<string> UnmatchedRows,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -279,6 +280,9 @@ internal static partial class QuestMatcher
         var unknown = new List<Quest>();
         // порядок строк сверху вниз: в игре он свой, из данных не выводится
         var ordered = new List<Quest>();
+        // строки списка, которые ни с чем не сошлись: у них есть статус, а
+        // значит это настоящие задания — просто под именем, которого нет в базе
+        var unmatchedRows = new List<string>();
         var sections = new Dictionary<string, int>();
         // имена, которые игра показывает короче, чем они записаны в базе
         var shortNames = new Dictionary<string, string>();
@@ -303,6 +307,17 @@ internal static partial class QuestMatcher
                 : isNew ? "новый" : "без статуса";
 
             matched.TryGetValue(row, out var hit);
+
+            if (hit.Quest == null && (isDone || isActive || isFailed || isNew))
+            {
+                // из всех прочтений ряда берём самое «русское»: английский
+                // движок коверкает кириллицу до неузнаваемости
+                var best = row.Texts
+                    .OrderByDescending(t => t.Count(c => c is >= 'а' and <= 'я' or >= 'А' and <= 'Я'))
+                    .First();
+                unmatchedRows.Add(best);
+            }
+
             debug.AppendLine($"  y={row.Y,5:F0} | {string.Join(" / ", row.Texts)}" +
                              $"  => {(hit.Quest == null ? "нет" : hit.Quest.Name)} " +
                              $"({hit.Score:F2}, {status})");
@@ -342,7 +357,7 @@ internal static partial class QuestMatcher
         }
 
         return new Result(completed, active, failed, fresh, unknown, ordered, sections, shortNames,
-            fullNames,
+            fullNames, unmatchedRows,
             area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),

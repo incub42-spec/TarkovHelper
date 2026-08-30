@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using TarkovHelper.Models;
@@ -18,8 +18,10 @@ public static class TarkovDevClient
       }
       itemsEn: items(lang: en) { id name shortName }
       tasks(lang: ru) {
-        id name kappaRequired minPlayerLevel
+        id name kappaRequired minPlayerLevel factionName restartable
         trader { name }
+        taskRequirements { task { id } status }
+        traderRequirements { trader { name } requirementType compareMethod value }
         objectives {
           type __typename
           ... on TaskObjectiveItem { count foundInRaid items { id } }
@@ -115,7 +117,48 @@ public static class TarkovDevClient
                 MinPlayerLevel = Int(t, "minPlayerLevel") ?? 0,
                 TraderName = t.TryGetProperty("trader", out var tr) && tr.ValueKind == JsonValueKind.Object
                     ? Str(tr, "name") : "",
+                Faction = Str(t, "factionName") is "USEC" or "BEAR" ? Str(t, "factionName") : "",
+                Restartable = t.TryGetProperty("restartable", out var rs) && rs.ValueKind == JsonValueKind.True,
             };
+
+            // условия по другим заданиям: статус бывает не только «сдан»
+            if (t.TryGetProperty("taskRequirements", out var treq) && treq.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var r in treq.EnumerateArray())
+                {
+                    var id = r.TryGetProperty("task", out var rt) && rt.ValueKind == JsonValueKind.Object
+                        ? Str(rt, "id") : "";
+                    if (id.Length == 0) continue;
+
+                    var statuses = r.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.Array
+                        ? st.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList()
+                        : new List<string>();
+                    if (statuses.Count == 0) continue;
+
+                    quest.Prerequisites.Add(new QuestPrerequisite { TaskId = id, Statuses = statuses });
+                    if (statuses.Contains("complete")) quest.Requires.Add(id);
+                }
+            }
+
+            // уровень лояльности и репутация торговца
+            if (t.TryGetProperty("traderRequirements", out var trreq) && trreq.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var r in trreq.EnumerateArray())
+                {
+                    var name = r.TryGetProperty("trader", out var rtr) && rtr.ValueKind == JsonValueKind.Object
+                        ? Str(rtr, "name") : "";
+                    var kind = Str(r, "requirementType");
+                    if (name.Length == 0 || kind is not ("level" or "reputation")) continue;
+
+                    quest.TraderConditions.Add(new TraderCondition
+                    {
+                        TraderName = name,
+                        Kind = kind,
+                        Compare = Str(r, "compareMethod") is { Length: > 0 } cmp ? cmp : ">=",
+                        Value = r.TryGetProperty("value", out var v) && v.TryGetDouble(out var dv) ? dv : 0,
+                    });
+                }
+            }
 
             if (t.TryGetProperty("objectives", out var objs) && objs.ValueKind == JsonValueKind.Array)
             {

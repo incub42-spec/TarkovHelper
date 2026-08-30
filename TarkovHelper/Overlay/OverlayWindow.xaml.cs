@@ -350,6 +350,7 @@ public partial class OverlayWindow : Window
             if (result.IsAvailableList && result.Trader is { } trader)
             {
                 var seen = App.Services.RememberSeenQuests(trader, result.Seen);
+                App.Services.RememberUnmatched(trader, result.UnmatchedRows);
 
                 if (!reconcile)
                 {
@@ -377,8 +378,13 @@ public partial class OverlayWindow : Window
 
                     // строка со статусом, которую не привязали к базе, могла быть
                     // как событийным заданием, так и не распознанным квестом
-                    if (result.Unmatched > 0)
-                        lines.Add(($"Строк без совпадения в базе: {result.Unmatched}", FailBrush));
+                    if (result.UnmatchedRows.Count > 0)
+                    {
+                        lines.Add(($"Строк без совпадения в базе: {result.UnmatchedRows.Count} — " +
+                                   "свяжите их в приложении, вкладка «Квесты»", FailBrush));
+                        foreach (var row in result.UnmatchedRows.Take(3))
+                            lines.Add(($"● {row}", MutedBrush));
+                    }
                 }
             }
 

@@ -536,6 +536,7 @@ public partial class MainWindow : Window
                 r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.Trader.Contains(q, StringComparison.OrdinalIgnoreCase));
         ShowTraderColumn(_traderTab.Length == 0);
+        RefreshUnmatchedButton();
 
         var shown = rows.ToList();
         QuestsList.ItemsSource = shown;
@@ -583,6 +584,34 @@ public partial class MainWindow : Window
 
         if (show) grid.Columns.Insert(1, ColQuestTrader);
         else grid.Columns.Remove(ColQuestTrader);
+    }
+
+    /// <summary>
+    /// Строки, прочитанные сканированием, но не найденные в базе. Локаль
+    /// отстаёт от игры, и вписывать каждый случай в код бессмысленно — куда
+    /// правильнее дать связать их прямо здесь.
+    /// </summary>
+    private void OnUnmatchedClick(object sender, RoutedEventArgs e)
+    {
+        var trader = _traderTab.Length > 0
+            ? _traderTab
+            : App.Services.Progress.UnmatchedRows.FirstOrDefault(x => x.Value.Count > 0).Key;
+        if (string.IsNullOrEmpty(trader)) return;
+
+        new LinkQuestsWindow(trader) { Owner = this }.ShowDialog();
+        RefreshFromServices();
+    }
+
+    /// <summary>Кнопка нужна, только когда есть что связывать.</summary>
+    private void RefreshUnmatchedButton()
+    {
+        var rows = App.Services.Progress.UnmatchedRows;
+        var count = _traderTab.Length > 0
+            ? rows.TryGetValue(_traderTab, out var mine) ? mine.Count : 0
+            : rows.Sum(x => x.Value.Count);
+
+        BtnUnmatched.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BtnUnmatched.Content = $"Не распознано ({count})…";
     }
 
     private void OnGroupQuestsChanged(object sender, RoutedEventArgs e)

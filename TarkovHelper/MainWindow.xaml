@@ -101,6 +101,10 @@
                     <Button x:Name="BtnUndoScan" DockPanel.Dock="Right" Width="210" Margin="0,0,12,0"
                             Visibility="Collapsed" Click="OnUndoQuestScanClick"
                             ToolTip="Снять отметки, поставленные последним сканированием списка"/>
+                    <!-- строки, которые сканирование прочитало, но не нашло в базе -->
+                    <Button x:Name="BtnUnmatched" DockPanel.Dock="Right" Width="180" Margin="0,0,12,0"
+                            Visibility="Collapsed" Click="OnUnmatchedClick"
+                            ToolTip="Связать прочитанные строки с квестами: в базе они называются по-старому"/>
                     <Button x:Name="BtnTraders" DockPanel.Dock="Right" Width="130" Margin="0,0,12,0"
                             Content="Торговцы…" Click="OnTradersClick"
                             ToolTip="Уровни лояльности и репутация: по ним отсекаются квесты, которых торговец пока не даёт"/>
