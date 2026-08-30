@@ -595,6 +595,31 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// «Торговец их не предлагает» — то же, чем заканчивается обход списка,
+    /// только руками: игрок видит список в игре и сам знает, чего там нет.
+    /// Сданными квесты при этом не считаются.
+    /// </summary>
+    private void OnNotIssuedClick(object sender, RoutedEventArgs e) => SetIssued(false);
+
+    private void OnIssuedClick(object sender, RoutedEventArgs e) => SetIssued(true);
+
+    private void SetIssued(bool issued)
+    {
+        var rows = QuestsList.SelectedItems.OfType<QuestRow>().ToList();
+        if (rows.Count == 0) return;
+
+        var changed = 0;
+        foreach (var row in rows)
+        {
+            changed += issued
+                ? App.Services.Progress.NotIssued.Remove(row.Quest.Id) ? 1 : 0
+                : App.Services.Progress.NotIssued.Add(row.Quest.Id) ? 1 : 0;
+        }
+
+        if (changed > 0) App.Services.SaveProgress();
+    }
+
+    /// <summary>
     /// Строки, прочитанные сканированием, но не найденные в базе. Локаль
     /// отстаёт от игры, и вписывать каждый случай в код бессмысленно — куда
     /// правильнее дать связать их прямо здесь.

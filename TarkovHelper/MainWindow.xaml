@@ -173,11 +173,16 @@
                 </Border>
 
                 <ListView x:Name="QuestsList" Background="White" Foreground="#FF15181B"
-                          SelectionChanged="OnQuestSelected"
+                          SelectionChanged="OnQuestSelected" SelectionMode="Extended"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Переименовать квест…" Click="OnRenameQuestClick"/>
+                            <Separator/>
+                            <!-- можно выделить сразу несколько строк -->
+                            <MenuItem Header="Торговец их не предлагает" Click="OnNotIssuedClick"
+                                      ToolTip="Убрать из доступных, не отмечая сданными"/>
+                            <MenuItem Header="Вернуть в доступные" Click="OnIssuedClick"/>
                         </ContextMenu>
                     </ListView.ContextMenu>
                     <!-- заголовки разделов включаются галочкой выше -->
