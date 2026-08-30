@@ -1064,13 +1064,64 @@ public partial class MainWindow : Window
 
     // ---------- вкладка «Убежище» ----------
 
+    private List<StationRow> _stationRows = new();
+
     private void RebuildStationRows()
     {
         var data = App.Services.Data;
-        StationsList.ItemsSource = data?.Stations
-            .OrderBy(s => s.Name)
-            .Select(s => new StationRow(s))
-            .ToList();
+        _stationRows = data == null
+            ? new List<StationRow>()
+            : data.Stations.OrderBy(s => s.Name).Select(s => new StationRow(s)).ToList();
+        ApplyStationFilter();
+    }
+
+    private void ApplyStationFilter()
+    {
+        IEnumerable<StationRow> rows = _stationRows;
+
+        if (ChkHideBuilt.IsChecked == true)
+            rows = rows.Where(r => r.Next != null);
+        if (ChkOnlyBuildable.IsChecked == true)
+            rows = rows.Where(r => r.Next != null && r.Blockers.Count == 0);
+
+        var selected = StationsList.SelectedItem as StationRow;
+        StationsList.ItemsSource = rows.ToList();
+        if (selected != null) StationsList.SelectedItem = selected;
+    }
+
+    private void OnStationFilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) ApplyStationFilter();
+    }
+
+    /// <summary>
+    /// Что нужно выбранной станции на следующий уровень. В самом списке этого
+    /// не показать: у станции до пяти позиций, и вместе они длиннее строки.
+    /// </summary>
+    private void OnStationSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (StationsList.SelectedItem is not StationRow row)
+        {
+            TxtStationTitle.Text = "Выберите станцию в списке";
+            TxtStationMeta.Text = "";
+            TxtStationBlockers.Text = "";
+            TxtStationNeedsTitle.Visibility = Visibility.Collapsed;
+            StationNeeds.ItemsSource = null;
+            return;
+        }
+
+        TxtStationTitle.Text = row.Name;
+        TxtStationMeta.Text = row.Next == null
+            ? $"Построен последний уровень ({row.CurrentLevel}). Дальше строить нечего."
+            : $"Построен уровень {row.CurrentLevel}, следующий — {row.Next.Level}.";
+
+        TxtStationBlockers.Text = row.Blockers.Count == 0
+            ? ""
+            : "Сначала нужно: " + string.Join(", ", row.Blockers);
+
+        var needs = row.Needs();
+        TxtStationNeedsTitle.Visibility = needs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        StationNeeds.ItemsSource = needs;
     }
 
     /// <summary>
@@ -1263,6 +1314,7 @@ public partial class MainWindow : Window
         internal StashRow(List<Item> variants, bool needed)
         {
             Needed = needed;
+            Category = variants[0].Category ?? "Прочее";
             // варианты одного имени неразличимы на глаз: жетоны разных уровней
             // — девять записей базы, а в описи это одна строка
             Ids = variants.Select(i => i.Id).ToList();
@@ -1276,6 +1328,8 @@ public partial class MainWindow : Window
         public string Name { get; }
         /// <summary>Предмет нужен для квеста или постройки — такие показываем сразу.</summary>
         public bool Needed { get; }
+        /// <summary>Раздел справочника, как в окне поиска игры.</summary>
+        public string Category { get; }
 
         public int Have => Ids.Sum(App.Services.Progress.InStash);
 
@@ -1337,6 +1391,8 @@ public partial class MainWindow : Window
                 .Select(g => new StashRow(g.ToList(),
                     g.Any(i => index?.Get(i.Id)?.NeededForQuestOrHideout == true)))
                 .ToList();
+
+        RefreshStashCategories();
         ApplyStashFilter();
     }
 
@@ -1345,6 +1401,25 @@ public partial class MainWindow : Window
     /// отмеченное: по нему удобно идти сверху вниз с плюсом. Поиск ищет по
     /// всей базе, иначе предмет, который никому не нужен, в опись не внести.
     /// </summary>
+    private const string AllCategories = "Все разделы";
+
+    /// <summary>Разделы, которые вообще встречаются в базе, — по алфавиту.</summary>
+    private void RefreshStashCategories()
+    {
+        var chosen = CmbStashCategory.SelectedItem as string;
+        var categories = _stashRows
+            .Select(r => r.Category)
+            .Distinct(StringComparer.CurrentCulture)
+            .OrderBy(c => c, StringComparer.CurrentCulture)
+            .ToList();
+        categories.Insert(0, AllCategories);
+
+        CmbStashCategory.ItemsSource = categories;
+        CmbStashCategory.SelectedItem = chosen != null && categories.Contains(chosen)
+            ? chosen
+            : AllCategories;
+    }
+
     private void ApplyStashFilter()
     {
         var q = TxtStashSearch.Text.Trim();
@@ -1355,10 +1430,25 @@ public partial class MainWindow : Window
         if (ChkStashOnlyHave.IsChecked == true)
             rows = rows.Where(r => r.Have > 0);
 
-        StashList.ItemsSource = rows.ToList();
+        if (CmbStashCategory.SelectedItem is string category && category != AllCategories)
+            rows = rows.Where(r => r.Category == category);
+
+        // Раскладываем по разделам справочника — так же, как игра в окне поиска.
+        // Внутри раздела порядок прежний, по алфавиту.
+        var view = new ListCollectionView(rows
+            .OrderBy(r => r.Category, StringComparer.CurrentCulture)
+            .ThenBy(r => r.Name, StringComparer.CurrentCulture)
+            .ToList());
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(StashRow.Category)));
+        StashList.ItemsSource = view;
     }
 
     private void OnStashFilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) ApplyStashFilter();
+    }
+
+    private void OnStashFilterChanged(object sender, SelectionChangedEventArgs e)
     {
         if (IsLoaded) ApplyStashFilter();
     }
@@ -1408,9 +1498,17 @@ public partial class MainWindow : Window
     private void OnTabChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded || !ReferenceEquals(e.OriginalSource, Tabs)) return;
-        if (!_itemsStale || !ReferenceEquals(Tabs.SelectedItem, TabItems)) return;
-        _itemsStale = false;
-        RebuildItemRows();
+        if (!_itemsStale) return;
+        if (ReferenceEquals(Tabs.SelectedItem, TabItems))
+        {
+            _itemsStale = false;
+            RebuildItemRows();
+        }
+        else if (ReferenceEquals(Tabs.SelectedItem, TabStations))
+        {
+            _itemsStale = false;
+            RebuildStationRows();
+        }
     }
 
     private sealed class ItemRow
@@ -1701,7 +1799,12 @@ public partial class MainWindow : Window
             App.Services.Progress.HideoutCheckedUtc[_station.Id] = DateTime.UtcNow;
             App.Services.Progress.HideoutImpliedUtc.Remove(_station.Id); // теперь это факт
             App.Services.SaveProgress();
-            foreach (var p in new[] { nameof(CheckedAt), nameof(IsChecked), nameof(StatusGlyph), nameof(StatusBrush) })
+            foreach (var p in new[]
+                     {
+                         nameof(CheckedAt), nameof(IsChecked), nameof(StatusGlyph),
+                         nameof(StatusBrush), nameof(NextText), nameof(ReadyText),
+                         nameof(ReadyBrush),
+                     })
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
         }
 
@@ -1729,6 +1832,89 @@ public partial class MainWindow : Window
         public string StatusGlyph => IsChecked ? "✓" : IsImplied ? "≈" : "✕";
         public Brush StatusBrush =>
             IsChecked ? CheckedBrush : IsImplied ? ImpliedBrush : UncheckedBrush;
+
+        /// <summary>Уровень, который строится следующим; null — станция достроена.</summary>
+        public HideoutLevel? Next =>
+            _station.Levels.FirstOrDefault(l => l.Level == CurrentLevel + 1);
+
+        public string NextText => Next == null ? "готово" : "ур. " + Next.Level;
+
+        /// <summary>
+        /// Постройки, без которых следующий уровень не заложить. У убежища есть
+        /// порядок прокачки, и без этого непонятно, почему собранное лежит зря.
+        /// </summary>
+        public List<string> Blockers
+        {
+            get
+            {
+                var result = new List<string>();
+                if (Next == null) return result;
+
+                foreach (var req in Next.StationRequirements)
+                {
+                    var built = App.Services.Progress.HideoutLevels
+                        .TryGetValue(req.StationId, out var l) ? l : 0;
+                    if (built >= req.Level) continue;
+
+                    var name = App.Services.Data?.Stations
+                        .FirstOrDefault(s => s.Id == req.StationId)?.Name ?? req.StationId;
+                    result.Add($"{name} ур. {req.Level}");
+                }
+                return result;
+            }
+        }
+
+        /// <summary>Что и сколько нужно на следующий уровень, с учётом схрона.</summary>
+        public List<NeedRow> Needs()
+        {
+            var result = new List<NeedRow>();
+            if (Next == null) return result;
+
+            foreach (var req in Next.Requirements)
+            {
+                var item = App.Services.ItemById(req.ItemId);
+                var have = App.Services.InStashByName(req.ItemId);
+                var left = Math.Max(0, req.Count - have);
+                result.Add(new NeedRow(
+                    Name: item?.Name ?? req.ItemId,
+                    Status: left == 0
+                        ? $"×{req.Count} — есть"
+                        : $"×{req.Count} — есть {have}, надо ещё {left}",
+                    Brush: left == 0 ? CheckedBrush : TitleTextBrush));
+            }
+            return result.OrderBy(r => r.Name, StringComparer.CurrentCulture).ToList();
+        }
+
+        /// <summary>Итог по следующему уровню — виден прямо в списке.</summary>
+        public string ReadyText
+        {
+            get
+            {
+                if (Next == null) return "";
+                var needs = Needs();
+                if (needs.Count == 0) return "материалов не нужно";
+                var ready = needs.Count(n => n.Ready);
+                return ready == needs.Count
+                    ? $"всё собрано ({needs.Count})"
+                    : $"собрано {ready} из {needs.Count}";
+            }
+        }
+
+        public Brush ReadyBrush
+        {
+            get
+            {
+                if (Next == null) return MutedTextBrush;
+                var needs = Needs();
+                return needs.Count > 0 && needs.All(n => n.Ready) ? CheckedBrush : TitleTextBrush;
+            }
+        }
+    }
+
+    /// <summary>Строка потребности станции: предмет, сколько нужно и сколько уже есть.</summary>
+    internal sealed record NeedRow(string Name, string Status, Brush Brush)
+    {
+        public bool Ready => ReferenceEquals(Brush, CheckedBrush);
     }
 
     private static readonly Brush CheckedBrush =

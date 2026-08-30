@@ -177,6 +177,19 @@ public static partial class FallbackDataClient
             // не попадает — он «silver-badge» и по уровню не умножается
             var isDogtag = Str(it, "normalizedName").StartsWith("dogtag", StringComparison.OrdinalIgnoreCase);
 
+            // Раздел справочника: в дампе лежит цепочка от частного к общему
+            // («Штурмовые винтовки» → «Оружие»), берём верхний — по нему игра и
+            // раскладывает предметы в окне поиска. Имена разделов лежат в той же
+            // локали, что и имена предметов, по идентификатору.
+            string? category = null;
+            if (it.TryGetProperty("handbookCategories", out var cats) &&
+                cats.ValueKind == JsonValueKind.Array)
+            {
+                var last = cats.EnumerateArray().LastOrDefault();
+                if (last.ValueKind == JsonValueKind.String)
+                    category = LocaleStr(sptRu, last.GetString() ?? "");
+            }
+
             var ruName = LocaleStr(sptRu, $"{id} Name");
             var ruShort = LocaleStr(sptRu, $"{id} ShortName");
             string? enName = null, enShort = null;
@@ -225,6 +238,7 @@ public static partial class FallbackDataClient
                 TraderSellName = traderName,
                 WikiTitle = WikiTitle(Str(it, "wikiLink")),
                 HasRussianName = ruName != null,
+                Category = category,
             });
         }
 

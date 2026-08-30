@@ -23,6 +23,11 @@ public sealed class Item
     /// <summary>Квестовый предмет (не существует в обычном инвентаре, только в рейде).</summary>
     public bool IsQuestItem { get; set; }
     /// <summary>
+    /// Верхний раздел справочника: «Оружие», «Медикаменты», «Ключи». Тот же,
+    /// по которому игра раскладывает предметы в окне поиска.
+    /// </summary>
+    public string? Category { get; set; }
+    /// <summary>
     /// Оружие. Цены в базе — за голый ствол, а игра показывает предложение за
     /// собранный, вместе с обвесом, поэтому суммы расходятся в разы.
     /// </summary>
@@ -197,7 +202,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 19;
+    public const int CurrentSchema = 20;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

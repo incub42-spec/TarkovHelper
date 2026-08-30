@@ -105,6 +105,8 @@ public sealed class AppServices
 
     private void AfterDataLoaded()
     {
+        _itemsById = null;   // база сменилась — раскладки собрать заново
+        _idsByName = null;
         // кеш мог быть собран прошлой версией с другими названиями станций
         FallbackDataClient.ApplyStationNames(Data!);
         // уровни станций, которые видно только по условиям постройки других
@@ -422,6 +424,39 @@ public sealed class AppServices
         LastQuestScan = new List<Quest>();
         if (count > 0) SaveProgress();
         return count;
+    }
+
+    // Ленивая раскладка предметов: имя → записи базы и id → предмет. Нужна,
+    // чтобы считать схрон по имени, а не по записи: одно и то же имя носят
+    // несколько записей (жетоны, патроны), на глаз они неразличимы, и опись
+    // ведётся по имени.
+    private Dictionary<string, Item>? _itemsById;
+    private Dictionary<string, List<string>>? _idsByName;
+
+    /// <summary>Предмет базы по идентификатору.</summary>
+    public Item? ItemById(string itemId)
+    {
+        if (Data == null) return null;
+        _itemsById ??= Data.Items
+            .GroupBy(i => i.Id)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        return _itemsById.GetValueOrDefault(itemId);
+    }
+
+    /// <summary>Сколько такого предмета в схроне, считая все одноимённые записи.</summary>
+    public int InStashByName(string itemId)
+    {
+        var item = ItemById(itemId);
+        if (Data == null || item == null) return Progress.InStash(itemId);
+
+        _idsByName ??= Data.Items
+            .GroupBy(i => i.Name, StringComparer.CurrentCulture)
+            .ToDictionary(g => g.Key, g => g.Select(i => i.Id).ToList(),
+                StringComparer.CurrentCulture);
+
+        return _idsByName.TryGetValue(item.Name, out var ids)
+            ? ids.Sum(Progress.InStash)
+            : Progress.InStash(itemId);
     }
 
     public void RebuildIndex()
