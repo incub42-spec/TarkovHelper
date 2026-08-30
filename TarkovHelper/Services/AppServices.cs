@@ -37,18 +37,10 @@ public sealed class AppServices
         if (Data != null)
             AfterDataLoaded();
 
-        // В кеше прошлых версий нет условий постройки станций и фракций квестов —
-        // без них не достроить уровни вроде «Стены» и не отделить версии квестов
-        // для USEC и BEAR. Тихо обновляем базу в фоне.
-        var noStationReqs = Data is { Stations.Count: > 0 } &&
-                            Data.Stations.All(s => s.Levels.All(l => l.StationRequirements.Count == 0));
-        var noFactions = Data is { Quests.Count: > 0 } &&
-                         Data.Quests.All(q => q.Faction.Length == 0);
-        // признак оружия появился позже — по нему подписываем, что цена без обвеса
-        var noWeapons = Data is { Items.Count: > 0 } && Data.Items.All(i => !i.IsWeapon);
-        // цепочки квестов появились позже — без них всё выглядит доступным
-        var noChains = Data is { Quests.Count: > 0 } && Data.Quests.All(q => q.Requires.Count == 0);
-        if (noStationReqs || noFactions || noWeapons || noChains)
+        // Кеш прошлой версии не содержит полей, которые мы начали читать позже
+        // (фракции, цепочки квестов, описания, признак оружия). Проверять их
+        // по одному пришлось бы бесконечно, поэтому сверяем версию схемы.
+        if (Data != null && Data.SchemaVersion < GameData.CurrentSchema)
             _ = RefreshDataAsync();
     }
 
@@ -84,6 +76,7 @@ public sealed class AppServices
         {
             var data = await TarkovDevClient.FetchAsync();
             data.Source = "tarkov.dev";
+            data.SchemaVersion = GameData.CurrentSchema;
             Data = data;
             DataStore.SaveData(data, Progress.PveMode);
             AfterDataLoaded();
@@ -98,6 +91,7 @@ public sealed class AppServices
         {
             var data = await FallbackDataClient.FetchAsync();
             data.Source = "резервный (json.tarkov.dev + SPT)";
+            data.SchemaVersion = GameData.CurrentSchema;
             Data = data;
             DataStore.SaveData(data, Progress.PveMode);
             AfterDataLoaded();

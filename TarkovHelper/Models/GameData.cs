@@ -67,6 +67,20 @@ public sealed class Quest
     /// прокачки: пока предыдущий не сдан, этот у торговца не появится.
     /// </summary>
     public List<string> Requires { get; set; } = new();
+
+    /// <summary>Текст задания от торговца (из локали; у новых квестов пусто).</summary>
+    public string Description { get; set; } = "";
+    /// <summary>Что нужно сделать — все цели, а не только «принести предметы».</summary>
+    public List<QuestObjective> Objectives { get; set; } = new();
+}
+
+/// <summary>Одна цель квеста для показа игроку.</summary>
+public sealed class QuestObjective
+{
+    public string Text { get; set; } = "";
+    public bool Optional { get; set; }
+    /// <summary>Сколько раз («Убить Диких» ×5); 0 — количество не задано.</summary>
+    public int Count { get; set; }
 }
 
 public sealed class TradeRequirement
@@ -114,6 +128,16 @@ public sealed class HideoutStation
 /// <summary>Вся статическая база игры, кешируется на диске.</summary>
 public sealed class GameData
 {
+    /// <summary>
+    /// Версия набора полей. Когда мы начинаем читать из источника что-то новое
+    /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
+    /// надо перекачать. Поднимать при каждом таком изменении.
+    /// </summary>
+    public const int CurrentSchema = 2;
+
+    /// <summary>Версия схемы, с которой собран этот кеш.</summary>
+    public int SchemaVersion { get; set; }
+
     public DateTime FetchedAtUtc { get; set; }
     /// <summary>Откуда загружена база: "tarkov.dev" или "резервный (json.tarkov.dev + SPT)".</summary>
     public string Source { get; set; } = "tarkov.dev";

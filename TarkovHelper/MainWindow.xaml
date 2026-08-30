@@ -79,16 +79,13 @@
         <TabItem Header="Квесты">
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <CheckBox x:Name="ChkHideCompleted" DockPanel.Dock="Right" VerticalAlignment="Center"
-                              Content="Скрыть выполненные"
-                              Checked="OnQuestFilterChanged" Unchecked="OnQuestFilterChanged"/>
                     <!-- выполненных сотни, и смотрят их редко — отдельным окном,
                          а не пятой вкладкой -->
                     <Button x:Name="BtnCompleted" DockPanel.Dock="Right" Width="160" Margin="0,0,12,0"
                             Content="Выполненные…" Click="OnShowCompletedClick"/>
-                    <ComboBox x:Name="CmbQuestStatus" DockPanel.Dock="Right" Width="150" Margin="0,0,12,0"
-                              SelectionChanged="OnQuestStatusFilterChanged"
-                              ToolTip="Доступные — те, у кого сданы все предыдущие квесты цепочки"/>
+                    <Button x:Name="BtnAllQuests" DockPanel.Dock="Right" Width="140" Margin="0,0,12,0"
+                            Content="Все квесты…" Click="OnShowAllQuestsClick"
+                            ToolTip="Полный список, включая закрытые и выполненные"/>
                     <TextBox x:Name="TxtQuestSearch" Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
                              TextChanged="OnQuestFilterChanged"
@@ -98,8 +95,51 @@
                      главы и оперативные туда не попадают, и это надо сказать явно,
                      иначе выглядит так, будто программа потеряла квесты -->
                 <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.7"
-                           Text="Статус считается по цепочке: «доступен» — все предыдущие квесты сданы, «закрыт» — нет. Здесь побочные задания торговцев, всё что есть в базе; сюжетных глав и оперативных заданий в источнике нет."/>
+                           Text="Здесь только доступные квесты: те, у кого сданы все предыдущие в цепочке и хватает уровня. Закрытые и выполненные — по кнопке «Все квесты…». В базе побочные задания торговцев; сюжетных глав и оперативных в источнике нет."/>
+                <!-- вкладки торговцев: переключают список, не трогая поиск -->
+                <ItemsControl x:Name="TraderTabs" DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <RadioButton GroupName="Traders" Content="{Binding}"
+                                         Style="{StaticResource {x:Type ToggleButton}}"
+                                         Margin="0,0,4,4" Padding="10,3"
+                                         Checked="OnTraderTabChecked"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- описание выбранного квеста: у списка без него не видно, что делать -->
+                <Border DockPanel.Dock="Right" Width="330" Margin="8,0,0,0" Padding="10"
+                        Background="#F2F4F6" BorderBrush="#D8DEE4" BorderThickness="1"
+                        CornerRadius="4">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock x:Name="TxtQuestTitle" FontWeight="SemiBold" FontSize="14"
+                                       TextWrapping="Wrap" Text="Выберите квест в списке"/>
+                            <TextBlock x:Name="TxtQuestMeta" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Opacity="0.75"/>
+                            <TextBlock x:Name="TxtQuestDesc" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="TxtQuestObjTitle" Margin="0,12,0,4" FontWeight="SemiBold"
+                                       Text="Задачи:" Visibility="Collapsed"/>
+                            <ItemsControl x:Name="QuestObjectives">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Text}" Foreground="{Binding Brush}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="TxtQuestChain" Margin="0,12,0,0" TextWrapping="Wrap"
+                                       Opacity="0.75"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
                 <ListView x:Name="QuestsList"
+                          SelectionChanged="OnQuestSelected"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
                         <ContextMenu>

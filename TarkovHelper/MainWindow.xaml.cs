@@ -18,7 +18,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        ChkHideCompleted.IsChecked = true;
         App.Services.Changed += () => Dispatcher.BeginInvoke(RefreshFromServices);
         Loaded += (_, _) => RefreshFromServices();
     }
@@ -424,36 +423,65 @@ public partial class MainWindow : Window
         ApplyQuestFilter();
     }
 
-    /// <summary>Варианты фильтра по цепочке квестов.</summary>
-    private static readonly List<string> QuestStatusOptions =
-        new() { "все квесты", "только доступные", "только закрытые" };
+    /// <summary>Выбранная вкладка торговца; пусто — все торговцы.</summary>
+    private string _traderTab = "";
+    private const string AllTraders = "Все";
 
-    private void OnQuestStatusFilterChanged(object sender, SelectionChangedEventArgs e)
+    private void OnTraderTabChecked(object sender, RoutedEventArgs e)
     {
+        if (sender is not RadioButton { Content: string trader }) return;
+        _traderTab = trader == AllTraders ? "" : trader;
         if (IsLoaded) ApplyQuestFilter();
+    }
+
+    /// <summary>Вкладки торговцев строятся по тем, у кого есть доступные квесты.</summary>
+    private void RebuildTraderTabs()
+    {
+        var traders = _allQuests
+            .Where(r => r.Status == "доступен")
+            .Select(r => r.Trader)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        // выбранный торговец мог остаться без доступных квестов — возвращаемся ко всем
+        if (_traderTab.Length > 0 && !traders.Contains(_traderTab)) _traderTab = "";
+
+        traders.Insert(0, AllTraders);
+        if (TraderTabs.ItemsSource is List<string> current && current.SequenceEqual(traders)) return;
+
+        TraderTabs.ItemsSource = traders;
+        TraderTabs.UpdateLayout();
+        SelectTraderTab();
+    }
+
+    /// <summary>Отмечает кнопку текущего торговца после пересборки вкладок.</summary>
+    private void SelectTraderTab()
+    {
+        var wanted = _traderTab.Length == 0 ? AllTraders : _traderTab;
+        foreach (var item in TraderTabs.Items)
+        {
+            if (TraderTabs.ItemContainerGenerator.ContainerFromItem(item) is not ContentPresenter cp)
+                continue;
+            cp.ApplyTemplate();
+            if (System.Windows.Media.VisualTreeHelper.GetChildrenCount(cp) == 0) continue;
+            if (System.Windows.Media.VisualTreeHelper.GetChild(cp, 0) is RadioButton rb)
+                rb.IsChecked = (string)item == wanted;
+        }
     }
 
     private void ApplyQuestFilter()
     {
-        if (CmbQuestStatus.ItemsSource == null)
-        {
-            CmbQuestStatus.ItemsSource = QuestStatusOptions;
-            CmbQuestStatus.SelectedIndex = 0;
-        }
+        RebuildTraderTabs();
 
-        IEnumerable<QuestRow> rows = _allQuests;
+        // в основном окне только то, чем можно заняться сейчас; полный список — по кнопке
+        IEnumerable<QuestRow> rows = _allQuests.Where(r => r.Status == "доступен");
 
-        rows = CmbQuestStatus.SelectedIndex switch
-        {
-            1 => rows.Where(r => r.Status == "доступен"),
-            2 => rows.Where(r => r.Status == "закрыт"),
-            _ => rows,
-        };
+        if (_traderTab.Length > 0)
+            rows = rows.Where(r => r.Trader == _traderTab);
         // квесты чужой фракции игроку не выдадут — прячем, если фракция указана
         rows = rows.Where(r => App.Services.Progress.Fits(r.Faction));
 
-        if (ChkHideCompleted.IsChecked == true)
-            rows = rows.Where(r => !r.IsCompleted);
         var q = TxtQuestSearch.Text.Trim();
         if (!string.IsNullOrEmpty(q))
             rows = rows.Where(r =>
@@ -466,6 +494,68 @@ public partial class MainWindow : Window
     private void OnQuestFilterChanged(object sender, RoutedEventArgs e)
     {
         if (IsLoaded) ApplyQuestFilter();
+    }
+
+    /// <summary>Полный список — отдельным окном: в основном показываем только доступные.</summary>
+    private void OnShowAllQuestsClick(object sender, RoutedEventArgs e)
+    {
+        var rows = _allQuests
+            .Where(r => App.Services.Progress.Fits(r.Faction))
+            .OrderBy(r => r.Trader)
+            .ThenBy(r => r.Name)
+            .ToList();
+        new QuestListWindow(rows, "Все квесты", 0) { Owner = this }.ShowDialog();
+        ApplyQuestFilter();
+    }
+
+    /// <summary>Описание выбранного квеста: без него список ничего не объясняет.</summary>
+    private void OnQuestSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (QuestsList.SelectedItem is not QuestRow row)
+        {
+            TxtQuestTitle.Text = "Выберите квест в списке";
+            TxtQuestMeta.Text = TxtQuestDesc.Text = TxtQuestChain.Text = "";
+            QuestObjectives.ItemsSource = null;
+            TxtQuestObjTitle.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var q = row.Quest;
+        TxtQuestTitle.Text = row.Name;
+
+        var meta = new List<string> { row.Trader, row.Status };
+        if (q.MinPlayerLevel > 0) meta.Add($"с {q.MinPlayerLevel} ур.");
+        if (q.Faction.Length > 0) meta.Add(q.Faction);
+        if (q.KappaRequired) meta.Add("нужен для Каппы");
+        TxtQuestMeta.Text = string.Join(" · ", meta);
+
+        TxtQuestDesc.Text = q.Description.Length > 0
+            ? q.Description
+            : "Описание недоступно: этого квеста ещё нет в источнике локализации.";
+
+        var objectives = q.Objectives
+            .Select(o => new
+            {
+                Text = "• " + o.Text + (o.Count > 1 ? $" ×{o.Count}" : "") +
+                       (o.Optional ? "  (необязательно)" : ""),
+                Brush = o.Optional ? (Brush)MutedTextBrush : TitleTextBrush,
+            })
+            .ToList();
+        QuestObjectives.ItemsSource = objectives;
+        TxtQuestObjTitle.Visibility = objectives.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // чего не хватает, чтобы квест открылся
+        var blockers = q.Requires
+            .Where(id => !App.Services.Progress.CompletedQuests.Contains(id))
+            .Select(id => App.Services.Data?.Quests.FirstOrDefault(x => x.Id == id))
+            .Where(x => x != null)
+            .Select(x => App.Services.Progress.NameOf(x!))
+            .ToList();
+        TxtQuestChain.Text = blockers.Count > 0
+            ? "Сначала надо сдать: " + string.Join(", ", blockers)
+            : q.Requires.Count > 0
+                ? "Цепочка перед ним пройдена."
+                : "";
     }
 
     /// <summary>
@@ -488,7 +578,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        new CompletedQuestsWindow(completed) { Owner = this }.ShowDialog();
+        new QuestListWindow(completed, "Выполненные квесты", 3) { Owner = this }.ShowDialog();
         ApplyQuestFilter(); // в окне могли снять отметку
     }
 
@@ -916,6 +1006,8 @@ public partial class MainWindow : Window
         new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32));   // зелёный: подтверждено
     private static readonly Brush UncheckedBrush =
         new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));   // красный: ещё не проверяли
+    private static readonly Brush TitleTextBrush =
+        new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
     private static readonly Brush MutedTextBrush =
         new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));   // серый: уже сдан
     private static readonly Brush ImpliedBrush =

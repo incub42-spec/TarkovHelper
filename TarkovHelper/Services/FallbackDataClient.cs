@@ -250,6 +250,26 @@ public static class FallbackDataClient
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
             };
 
+            // Текст задания и целей лежит в локали по идентификаторам: описание
+            // под «<id> description», цель — под собственным id. Без локали
+            // остаются пустыми, и вкладка просто не покажет описание.
+            quest.Description = LocaleStr(sptRu, $"{id} description") ?? "";
+            if (t.TryGetProperty("objectives", out var allObjs) && allObjs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var o in allObjs.EnumerateArray())
+                {
+                    var text = LocaleStr(sptRu, Str(o, "id"));
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    quest.Objectives.Add(new QuestObjective
+                    {
+                        Text = text!,
+                        Optional = o.TryGetProperty("optional", out var opt) &&
+                                   opt.ValueKind == JsonValueKind.True,
+                        Count = Int(o, "count") ?? 0,
+                    });
+                }
+            }
+
             if (t.TryGetProperty("objectives", out var objs) && objs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var o in objs.EnumerateArray())

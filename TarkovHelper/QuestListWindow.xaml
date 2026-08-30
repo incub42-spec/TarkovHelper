@@ -1,4 +1,4 @@
-<Window x:Class="TarkovHelper.CompletedQuestsWindow"
+﻿<Window x:Class="TarkovHelper.QuestListWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="app.ico"
@@ -9,12 +9,14 @@
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
             <TextBlock x:Name="TxtCount" DockPanel.Dock="Right" VerticalAlignment="Center"
                        Margin="12,0,0,0" Opacity="0.7"/>
+            <ComboBox x:Name="CmbStatus" DockPanel.Dock="Right" Width="160" Margin="12,0,0,0"
+                      SelectionChanged="OnStatusChanged"/>
             <TextBox x:Name="TxtSearch" VerticalContentAlignment="Center"
                      TextChanged="OnSearchChanged"
                      ToolTip="Поиск по названию квеста или торговцу"/>
         </DockPanel>
         <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.7"
-                   Text="Снимите галочку, если квест отмечен по ошибке — он вернётся в основной список."/>
+                   Text="Галочка отмечает квест выполненным; снятая — возвращает его в работу. В основном окне видны только доступные квесты."/>
         <ListView x:Name="List" GridViewColumnHeader.Click="OnColumnHeaderClick">
             <ListView.View>
                 <GridView>
@@ -33,6 +35,13 @@
                                     DisplayMemberBinding="{Binding Name}"/>
                     <GridViewColumn Header="Фракция" Width="70"
                                     DisplayMemberBinding="{Binding Faction}"/>
+                    <GridViewColumn Header="Статус" Width="90">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn Header="Отмечен" Width="120">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
