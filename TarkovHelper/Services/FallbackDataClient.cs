@@ -159,6 +159,11 @@ public static partial class FallbackDataClient
         }
 
         // --- предметы ---
+        // Имена пресетов: в список предметов они не идут, но в обменах у
+        // Механика и Барахольщика каждая пятая награда — именно пресет, и без
+        // имени строка «Обмен: Механик ур.1 → предмет» ничего не говорит.
+        var presetNames = new Dictionary<string, string>(StringComparer.Ordinal);
+
         var items = itemsDoc.RootElement.GetProperty("data").GetProperty("items");
         foreach (var prop in items.EnumerateObject())
         {
@@ -169,6 +174,9 @@ public static partial class FallbackDataClient
             var hasTypes = it.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array;
             if (hasTypes && types.EnumerateArray().Any(t => t.GetString() == "preset"))
             {
+                var presetName = LocaleStr(sptRu, $"{id} Name")
+                                 ?? NameFromSlug(Str(it, "normalizedName"));
+                if (presetName != null) presetNames[id] = presetName;
                 continue;
             }
             var isGun = hasTypes && types.EnumerateArray().Any(t => t.GetString() == "gun");
@@ -434,10 +442,13 @@ public static partial class FallbackDataClient
                 if (b.TryGetProperty("offeredItem", out var off) && off.ValueKind == JsonValueKind.Object)
                 {
                     var rewardId = Str(off, "item");
-                    // сырой ид в интерфейсе бесполезен — пробуем локаль SPT, иначе обобщаем
+                    // сырой ид в интерфейсе бесполезен — пробуем локаль SPT и
+                    // имена пресетов, и только потом обобщаем
                     barter.Reward = itemNames.TryGetValue(rewardId, out var rn)
                         ? rn
-                        : LocaleStr(sptRu, $"{rewardId} Name") ?? "предмет";
+                        : LocaleStr(sptRu, $"{rewardId} Name")
+                          ?? presetNames.GetValueOrDefault(rewardId)
+                          ?? "предмет";
                 }
                 if (barter.Required.Count > 0)
                     result.Barters.Add(barter);
