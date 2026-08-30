@@ -582,6 +582,10 @@ public partial class MainWindow : Window
                 ? "Цепочка перед ним пройдена."
                 : "";
 
+        if (App.Services.Progress.LockedTraders.Contains(q.TraderName))
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  $"{q.TraderName} ещё не открыт.";
+
         // условия по торговцу — вторая причина, по которой квеста нет в игре
         if (q.TraderConditions.Count > 0)
         {

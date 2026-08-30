@@ -14,10 +14,14 @@ public partial class TradersWindow : Window
     private sealed class Row
     {
         public string Name { get; init; } = "";
-        public List<string> LevelOptions { get; } = new() { "", "1", "2", "3", "4" };
+        /// <summary>«не открыт» — торговца у персонажа ещё нет; пусто — не знаю.</summary>
+        public List<string> LevelOptions { get; } = new() { "", NotUnlocked, "1", "2", "3", "4" };
         public string Level { get; set; } = "";
         public string Reputation { get; set; } = "";
     }
+
+    /// <summary>Подпись варианта «торговца ещё нет».</summary>
+    private const string NotUnlocked = "не открыт";
 
     private readonly List<Row> _rows;
 
@@ -30,7 +34,9 @@ public partial class TradersWindow : Window
         _rows = traders.Select(t => new Row
         {
             Name = t,
-            Level = p.TraderLevels.TryGetValue(t, out var lvl) && lvl > 0 ? lvl.ToString() : "",
+            Level = p.LockedTraders.Contains(t)
+                ? NotUnlocked
+                : p.TraderLevels.TryGetValue(t, out var lvl) && lvl > 0 ? lvl.ToString() : "",
             Reputation = p.TraderRep.TryGetValue(t, out var rep)
                 ? rep.ToString("0.##", CultureInfo.CurrentCulture)
                 : "",
@@ -44,10 +50,19 @@ public partial class TradersWindow : Window
         var p = App.Services.Progress;
         foreach (var row in _rows)
         {
-            if (int.TryParse(row.Level, out var lvl) && lvl is >= 1 and <= 4)
-                p.TraderLevels[row.Name] = lvl;
-            else
+            if (row.Level == NotUnlocked)
+            {
+                p.LockedTraders.Add(row.Name);
                 p.TraderLevels.Remove(row.Name);
+            }
+            else
+            {
+                p.LockedTraders.Remove(row.Name);
+                if (int.TryParse(row.Level, out var lvl) && lvl is >= 1 and <= 4)
+                    p.TraderLevels[row.Name] = lvl;
+                else
+                    p.TraderLevels.Remove(row.Name);
+            }
 
             // репутация бывает дробной и отрицательной: «1.75», «-3»
             var text = (row.Reputation ?? "").Trim().Replace(',', '.');

@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterOwner">
     <StackPanel Margin="14">
         <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,10"
-                   Text="Уровень лояльности и репутация видны в игре над списком торговцев. Часть квестов выдаётся только при определённой репутации — у Скупщика, например, при отрицательной. Пустые поля не проверяются."/>
+                   Text="Уровень лояльности и репутация видны в игре над списком торговцев. Часть квестов выдаётся только при определённой репутации — у Скупщика, например, при отрицательной. Если торговец ещё не открыт (Смотритель, водитель БТР), выберите «не открыт» — его квесты уйдут из доступных. Пустые поля не проверяются."/>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="180"/>
@@ -30,7 +30,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
-                        <ComboBox Grid.Column="1" Width="70" HorizontalAlignment="Left"
+                        <ComboBox Grid.Column="1" Width="100" HorizontalAlignment="Left"
                                   ItemsSource="{Binding LevelOptions}"
                                   SelectedItem="{Binding Level, Mode=TwoWay}"/>
                         <TextBox Grid.Column="2" Width="80" HorizontalAlignment="Left"

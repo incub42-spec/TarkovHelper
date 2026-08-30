@@ -20,6 +20,12 @@ public sealed class Progress
     /// Нужен, чтобы не считать доступными квесты, до которых игрок не дорос.
     /// </summary>
     public int PlayerLevel { get; set; }
+    /// <summary>
+    /// Торговцы, которых у персонажа ещё нет (Смотритель, водитель БТР
+    /// открываются не сразу). Их квесты не могут быть доступны, и условия
+    /// по ним считаются невыполненными.
+    /// </summary>
+    public HashSet<string> LockedTraders { get; set; } = new();
     /// <summary>Уровень лояльности торговца (1–4). Чего нет — не проверяем.</summary>
     public Dictionary<string, int> TraderLevels { get; set; } = new();
     /// <summary>Репутация у торговца; бывает отрицательной (Скупщик).</summary>
@@ -62,6 +68,7 @@ public sealed class Progress
         !CompletedQuests.Contains(quest.Id) &&
         quest.Requires.All(CompletedQuests.Contains) &&
         (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel) &&
+        !LockedTraders.Contains(quest.TraderName) &&
         quest.TraderConditions.All(Meets);
 
     /// <summary>
@@ -71,6 +78,9 @@ public sealed class Progress
     /// </summary>
     public bool Meets(TraderCondition c)
     {
+        // торговца ещё нет — значит ни уровня, ни репутации у него быть не может
+        if (LockedTraders.Contains(c.TraderName)) return false;
+
         double have;
         if (c.Kind == "reputation")
         {
