@@ -279,9 +279,32 @@ public sealed class AppServices
             Progress.QuestSections[id] = section;
         foreach (var (id, name) in shortNames)
             Progress.SeenNames[id] = name;
-        // игра показала номер части — прежнее укороченное имя было ошибкой
+        // Игра показала номер части — укороченное имя было ошибкой. Снимаем
+        // его со всей цепочки: строку с номером могло притянуть к соседней
+        // части, и тогда короткое имя осело именно на ней.
         foreach (var id in fullNames)
+        {
             Progress.SeenNames.Remove(id);
+
+            var quest = Data?.Quests.FirstOrDefault(q => q.Id == id);
+            if (quest == null) continue;
+            var family = QuestMatcher.WithoutPart(quest.Name);
+            if (family.Length == 0) continue;
+
+            var seenIds = ordered.Select(q => q.Id).ToHashSet();
+            foreach (var other in Data!.Quests)
+            {
+                if (other.TraderName != quest.TraderName) continue;
+                if (QuestMatcher.WithoutPart(other.Name) != family) continue;
+
+                Progress.SeenNames.Remove(other.Id);
+
+                // Часть цепочки, которой в кадре нет, торговец не выдавал:
+                // «активен» на ней — след того же промаха, когда строку с
+                // номером притянуло к соседней части.
+                if (!seenIds.Contains(other.Id)) Progress.ActiveQuests.Remove(other.Id);
+            }
+        }
         SaveProgress();
     }
 

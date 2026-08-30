@@ -67,7 +67,7 @@ internal static partial class QuestMatcher
     private static partial Regex PartNumberRegex();
 
     /// <summary>Название без номера части: игра показывает его короче базы.</summary>
-    private static string WithoutPart(string name) => PartSuffixRegex().Replace(name, "").Trim();
+    internal static string WithoutPart(string name) => PartSuffixRegex().Replace(name, "").Trim();
 
     /// <summary>Ряд списка: все строки, прочитанные на одной высоте.</summary>
     private sealed record Row(double X, double Y, List<string> Texts)
