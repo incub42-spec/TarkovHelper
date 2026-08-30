@@ -95,6 +95,7 @@ public partial class MainWindow : Window
 
         RebuildItemRows();
         RebuildQuestRows();
+        RebuildStashRows();
         RebuildStationRows();
     }
 
@@ -1188,6 +1189,98 @@ public partial class MainWindow : Window
 
     // ---------- строки таблиц ----------
 
+    /// <summary>Строка схрона: сколько нужно, сколько есть, сколько осталось.</summary>
+    internal sealed class StashRow
+    {
+        private readonly ItemNeeds _needs;
+
+        internal StashRow(ItemNeeds needs)
+        {
+            _needs = needs;
+            ItemId = needs.Item.Id;
+            Name = needs.Item.Name;
+            Need = needs.QuestCount + needs.HideoutCount;
+            Sources = string.Join(";  ", needs.Needs
+                .Where(x => x.Kind != NeedKind.Barter)
+                .Select(x => $"{x.Source} ×{x.Count}"));
+        }
+
+        public string ItemId { get; }
+        public string Name { get; }
+        public int Need { get; }
+        public string Sources { get; }
+
+        public int Have => App.Services.Progress.InStash(ItemId);
+        public int Left => Math.Max(0, Need - Have);
+        public Brush LeftBrush => Left == 0 ? CheckedBrush : TitleTextBrush;
+    }
+
+    private List<StashRow> _stashRows = new();
+
+    private void RebuildStashRows()
+    {
+        var index = App.Services.Index;
+        _stashRows = index == null
+            ? new List<StashRow>()
+            : index.ByItemId.Values
+                .Where(n => n.NeededForQuestOrHideout)
+                .OrderBy(n => n.Item.Name, StringComparer.CurrentCulture)
+                .Select(n => new StashRow(n))
+                .ToList();
+        ApplyStashFilter();
+    }
+
+    private void ApplyStashFilter()
+    {
+        IEnumerable<StashRow> rows = _stashRows;
+
+        if (ChkStashOnlyLeft.IsChecked == true)
+            rows = rows.Where(r => r.Left > 0);
+
+        var q = TxtStashSearch.Text.Trim();
+        if (q.Length > 0)
+            rows = rows.Where(r => r.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase));
+
+        StashList.ItemsSource = rows.ToList();
+    }
+
+    private void OnStashFilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) ApplyStashFilter();
+    }
+
+    private void OnStashPlusClick(object sender, RoutedEventArgs e) => ChangeStash(sender, +1);
+
+    private void OnStashMinusClick(object sender, RoutedEventArgs e) => ChangeStash(sender, -1);
+
+    private void ChangeStash(object sender, int delta)
+    {
+        if (sender is not FrameworkElement { Tag: string itemId }) return;
+        var progress = App.Services.Progress;
+        progress.SetStash(itemId, progress.InStash(itemId) + delta);
+        App.Services.SaveProgress();
+    }
+
+    /// <summary>Число вводят руками, когда в схроне сразу десяток штук.</summary>
+    private void OnStashCountEdited(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox { Tag: string itemId } box) return;
+        if (!int.TryParse(box.Text.Trim(), out var count)) count = 0;
+
+        var progress = App.Services.Progress;
+        if (progress.InStash(itemId) == count) return;
+
+        progress.SetStash(itemId, count);
+        App.Services.SaveProgress();
+    }
+
+    private void OnStashCountKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        OnStashCountEdited(sender, e);
+        e.Handled = true;
+    }
+
     private sealed class ItemRow
     {
         public ItemRow(ItemNeeds n)
@@ -1223,7 +1316,29 @@ public partial class MainWindow : Window
             BarterCount = n.BarterUses;
             Price = flea ?? 0;
             TraderPrice = n.Item.TraderSellPrice ?? 0;
+
+            // Сколько уже лежит в схроне и сколько осталось найти. Без этого
+            // список показывает полную потребность и заставляет держать
+            // накопленное в голове.
+            ItemId = n.Item.Id;
+            Have = App.Services.Progress.InStash(n.Item.Id);
+            var need = n.QuestCount + n.HideoutCount;
+            Left = Math.Max(0, need - Have);
+            HaveText = Have > 0 ? Have.ToString() : "";
+            LeftText = need > 0 ? Left.ToString() : "";
+            Enough = need > 0 && Left == 0;
         }
+
+        public string ItemId { get; }
+        public int Have { get; }
+        public int Left { get; }
+        public string HaveText { get; }
+        public string LeftText { get; }
+        /// <summary>Нужное уже собрано — строку можно не искать в рейде.</summary>
+        public bool Enough { get; }
+
+        /// <summary>Собранное подсвечиваем зелёным: искать больше не нужно.</summary>
+        public Brush LeftBrush => Enough ? CheckedBrush : TitleTextBrush;
 
         public string Name { get; }
         public bool HasPrimary { get; }

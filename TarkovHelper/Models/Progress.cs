@@ -93,6 +93,24 @@ public sealed class Progress
     public Dictionary<string, string> QuestAliases { get; set; } = new();
 
     /// <summary>
+    /// Что уже лежит в схроне: предмет → сколько штук. Нужно, чтобы список
+    /// «что собирать» показывал остаток, а не полную потребность: половина
+    /// нужного обычно уже накоплена, и без этого список врёт.
+    /// </summary>
+    public Dictionary<string, int> Stash { get; set; } = new();
+
+    /// <summary>Сколько этого предмета в схроне.</summary>
+    public int InStash(string itemId) =>
+        Stash.TryGetValue(itemId, out var n) && n > 0 ? n : 0;
+
+    /// <summary>Записывает количество; ноль убирает запись совсем.</summary>
+    public void SetStash(string itemId, int count)
+    {
+        if (count > 0) Stash[itemId] = count;
+        else Stash.Remove(itemId);
+    }
+
+    /// <summary>
     /// Порядок квестов у каждого торговца — такой, каким его показывает игра.
     /// Из данных он не выводится: это не алфавит, не уровень и не порядок в
     /// дампе, а хронология выдачи в конкретном профиле. Зато его видно на

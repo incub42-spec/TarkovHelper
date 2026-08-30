@@ -68,6 +68,17 @@
                         <GridView>
                             <GridViewColumn Header="Предмет" Width="330"
                                             DisplayMemberBinding="{Binding Name}"/>
+                            <!-- сколько уже лежит в схроне и сколько осталось найти -->
+                            <GridViewColumn Header="Есть" Width="60"
+                                            DisplayMemberBinding="{Binding HaveText}"/>
+                            <GridViewColumn Header="Осталось" Width="80">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding LeftText}"
+                                                   Foreground="{Binding LeftBrush}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
                             <GridViewColumn Header="Для квестов" Width="100"
                                             DisplayMemberBinding="{Binding QuestText}"/>
                             <GridViewColumn Header="из них FIR" Width="90"
@@ -242,6 +253,61 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+        </TabItem>
+
+        <!-- схрон: сколько нужного уже накоплено -->
+        <TabItem Header="Схрон">
+            <DockPanel Margin="10">
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <CheckBox x:Name="ChkStashOnlyLeft" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" Content="Только недостающие" IsChecked="True"
+                              Checked="OnStashFilterChanged" Unchecked="OnStashFilterChanged"/>
+                    <TextBox x:Name="TxtStashSearch" VerticalContentAlignment="Center"
+                             TextChanged="OnStashFilterChanged"
+                             ToolTip="Поиск по названию предмета"/>
+                </DockPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.75"
+                           Text="Здесь только то, что нужно для квестов и убежища. Впишите, сколько уже лежит в схроне, — в списке «Что собирать» появится остаток. Плюс и минус меняют на единицу, в поле можно ввести число."/>
+
+                <ListView x:Name="StashList" Background="White" Foreground="#FF15181B"
+                          GridViewColumnHeader.Click="OnColumnHeaderClick">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Предмет" Width="360"
+                                            DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Нужно" Width="80"
+                                            DisplayMemberBinding="{Binding Need}"/>
+                            <GridViewColumn Header="Есть" Width="150">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="−" Width="26" Tag="{Binding ItemId}"
+                                                    Click="OnStashMinusClick"/>
+                                            <TextBox Width="52" Margin="4,0" TextAlignment="Center"
+                                                     Text="{Binding Have, Mode=OneWay}"
+                                                     Tag="{Binding ItemId}"
+                                                     LostFocus="OnStashCountEdited"
+                                                     KeyDown="OnStashCountKeyDown"/>
+                                            <Button Content="+" Width="26" Tag="{Binding ItemId}"
+                                                    Click="OnStashPlusClick"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Осталось" Width="90">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Left}" Foreground="{Binding LeftBrush}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Зачем" Width="520"
+                                            DisplayMemberBinding="{Binding Sources}"/>
                         </GridView>
                     </ListView.View>
                 </ListView>
