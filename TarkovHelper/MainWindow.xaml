@@ -120,6 +120,11 @@
                     <TextBlock x:Name="TxtQuestKnowledge" TextWrapping="Wrap" Opacity="0.7"
                                Margin="0,4,0,0"/>
                 </StackPanel>
+                <!-- та же галочка, что в игре: разложить по уровням лояльности -->
+                <CheckBox x:Name="ChkGroupQuests" DockPanel.Dock="Top" Margin="0,0,0,8"
+                          Content="Группировать по разделам, как в игре"
+                          Checked="OnGroupQuestsChanged" Unchecked="OnGroupQuestsChanged"
+                          ToolTip="Уровни лояльности торговца и «Ключевые». Разделы читаются при сканировании списка (F11) в сгруппированном виде"/>
                 <!-- вкладки торговцев: переключают список, не трогая поиск -->
                 <ItemsControl x:Name="TraderTabs" DockPanel.Dock="Top" Margin="0,0,0,8">
                     <ItemsControl.ItemsPanel>
@@ -171,6 +176,17 @@
                             <MenuItem Header="Переименовать квест…" Click="OnRenameQuestClick"/>
                         </ContextMenu>
                     </ListView.ContextMenu>
+                    <!-- заголовки разделов включаются галочкой выше -->
+                    <ListView.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                               Margin="4,10,0,4" Foreground="#FF3A4652"/>
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Выполнен" Width="80">

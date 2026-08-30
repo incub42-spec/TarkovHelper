@@ -267,12 +267,15 @@ public sealed class AppServices
         return marked;
     }
 
-    /// <summary>Запоминает порядок квестов у торговца, увиденный в кадре.</summary>
-    public void RememberQuestOrder(string trader, IEnumerable<Quest> seen)
+    /// <summary>Запоминает порядок квестов и их разделы, увиденные в кадре.</summary>
+    public void RememberQuestOrder(
+        string trader, IEnumerable<Quest> seen, IReadOnlyDictionary<string, int> sections)
     {
         var ordered = seen.Where(q => q.TraderName == trader).ToList();
         if (ordered.Count == 0) return;
         Progress.RememberOrder(trader, ordered);
+        foreach (var (id, section) in sections)
+            Progress.QuestSections[id] = section;
         SaveProgress();
     }
 

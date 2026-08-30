@@ -299,7 +299,7 @@ public partial class OverlayWindow : Window
 
             // порядок строк кадра — единственный источник игрового порядка
             if (result.Trader is { } listTrader)
-                App.Services.RememberQuestOrder(listTrader, result.Ordered);
+                App.Services.RememberQuestOrder(listTrader, result.Ordered, result.Sections);
 
             var added = App.Services.MarkQuestsCompleted(result.Completed);
             var failed = App.Services.MarkQuestsFailed(result.Failed);

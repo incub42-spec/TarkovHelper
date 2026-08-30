@@ -75,7 +75,36 @@ public sealed class Progress
     /// </summary>
     public Dictionary<string, List<string>> QuestOrder { get; set; } = new();
 
-    /// <summary>Место квеста в списке торговца; в конец — если не видели.</summary>
+    /// <summary>
+    /// Раздел, в котором игра показывает квест: 1–4 — уровень лояльности
+    /// торговца, 5 — «Ключевые». В базе уровень лояльности указан у 110
+    /// квестов из 514, а на экране виден у всех, поэтому берём его оттуда.
+    /// </summary>
+    public Dictionary<string, int> QuestSections { get; set; } = new();
+
+    /// <summary>Раздел квеста; 0 — не знаем, список ещё не сканировали.</summary>
+    public int SectionOf(Quest quest)
+    {
+        if (QuestSections.TryGetValue(quest.Id, out var s)) return s;
+
+        // пока не сканировали — берём из базы, где условие лояльности указано
+        var level = quest.TraderConditions
+            .Where(c => c.Kind == "level" && c.TraderName == quest.TraderName)
+            .Select(c => (int)c.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+        return level is >= 1 and <= 4 ? level : 0;
+    }
+
+    /// <summary>Подпись раздела для группировки списка.</summary>
+    public string SectionName(Quest quest) => SectionOf(quest) switch
+    {
+        0 => "Раздел неизвестен — список не сканировали",
+        5 => "Ключевые",
+        var l => $"Уровень лояльности {l}",
+    };
+
+    /// <summary>Место квеста в списке торговца; в конец — если не видели.</summary>    /// <summary>Место квеста в списке торговца; в конец — если не видели.</summary>
     public int OrderOf(Quest quest)
     {
         if (!QuestOrder.TryGetValue(quest.TraderName, out var list)) return int.MaxValue;

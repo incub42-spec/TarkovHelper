@@ -34,6 +34,22 @@ internal static partial class QuestMatcher
     [GeneratedRegex(@"(?i)[\s.,-]*(часть|part)\s*[0-9a-zа-я|]?\s*$")]
     private static partial Regex PartSuffixRegex();
 
+    /// <summary>
+    /// Заголовок раздела в сгруппированном виде списка: «УРОВЕНЬ ЛОЯЛЬНОСТИ 2».
+    /// Игра раскладывает задания по уровню лояльности торговца, и это тот же
+    /// уровень, что в базе, — только в базе он указан у 110 квестов из 514,
+    /// а на экране виден у всех.
+    /// </summary>
+    [GeneratedRegex(@"(?i)(уровень\s+лояльн\w*|loyalty\s+level)\D*([0-9a-zа-я|])")]
+    private static partial Regex LoyaltyHeaderRegex();
+
+    /// <summary>Раздел «Ключевые» — идёт после всех уровней лояльности.</summary>
+    [GeneratedRegex(@"(?i)^.{0,3}?(ключевые|key\s+tasks?)\s*$")]
+    private static partial Regex KeyHeaderRegex();
+
+    /// <summary>Ключевые в списке ниже любого уровня лояльности.</summary>
+    public const int KeySection = 5;
+
     /// <summary>Номер части в конце названия: «. Часть 3» → 3, иначе null.</summary>
     [GeneratedRegex(@"(?i)(часть|part)\s*([0-9a-zа-я|])\s*$")]
     private static partial Regex PartNumberRegex();
@@ -85,7 +101,7 @@ internal static partial class QuestMatcher
     /// </summary>
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
-        List<Quest> Unknown, List<Quest> Ordered,
+        List<Quest> Unknown, List<Quest> Ordered, Dictionary<string, int> Sections,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -146,12 +162,29 @@ internal static partial class QuestMatcher
         // английский коверкает кириллицу, зато цифру берёт верно. Собираем
         // строки одного ряда вместе — вместе они дают больше, чем по одной.
         var rows = new List<Row>();
+        var sectionMarks = new List<(double Y, int Section)>();
         foreach (var line in lines.OrderBy(l => l.Y))
         {
             var text = line.Text.Trim();
             if (text.Length < 5) continue;
             if (DoneRegex().IsMatch(text) || ActiveRegex().IsMatch(text) ||
                 FailedRegex().IsMatch(text) || NewRegex().IsMatch(text)) continue;
+
+            // заголовок раздела — не квест, но всё, что ниже, относится к нему
+            if (KeyHeaderRegex().IsMatch(text))
+            {
+                sectionMarks.Add((line.Y, KeySection));
+                continue;
+            }
+            if (LoyaltyHeaderRegex().Match(text) is { Success: true } header)
+            {
+                var digit = FoldDigit(header.Groups[2].Value[0]);
+                if (digit is >= '1' and <= '4')
+                {
+                    sectionMarks.Add((line.Y, digit - '0'));
+                    continue;
+                }
+            }
 
             var row = rows.LastOrDefault();
             if (row != null && Math.Abs(row.Y - line.Y) <= 12) row.Texts.Add(text);
@@ -218,6 +251,7 @@ internal static partial class QuestMatcher
         var unknown = new List<Quest>();
         // порядок строк сверху вниз: в игре он свой, из данных не выводится
         var ordered = new List<Quest>();
+        var sections = new Dictionary<string, int>();
         var debug = new System.Text.StringBuilder();
 
         foreach (var row in rows)
@@ -240,6 +274,11 @@ internal static partial class QuestMatcher
 
             if (hit.Quest == null) continue;
             ordered.Add(hit.Quest);
+
+            // раздел квеста — последний заголовок выше его строки
+            var section = sectionMarks.LastOrDefault(m => m.Y < row.Y - 4);
+            if (section.Section > 0) sections[hit.Quest.Id] = section.Section;
+
             if (isFailed) failed.Add(hit.Quest);
             else if (isActive) active.Add(hit.Quest);
             else if (isDone) completed.Add(hit.Quest);
@@ -247,7 +286,8 @@ internal static partial class QuestMatcher
             else unknown.Add(hit.Quest);
         }
 
-        return new Result(completed, active, failed, fresh, unknown, ordered, area, lines.Count,
+        return new Result(completed, active, failed, fresh, unknown, ordered, sections,
+            area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),
             rows.Count == 0 ? 0 : rows[^1].Y);

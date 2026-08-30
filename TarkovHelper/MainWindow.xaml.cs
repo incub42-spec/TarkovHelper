@@ -463,6 +463,7 @@ public partial class MainWindow : Window
                 .OrderBy(q => FallbackDataClient.TraderRank(q.TraderName))
                 // порядок, увиденный при сканировании: так же, как в игре.
                 // Чего не сканировали — следом, по уровню
+                .ThenBy(q => App.Services.Progress.SectionOf(q) == 0 ? 9 : App.Services.Progress.SectionOf(q))
                 .ThenBy(q => App.Services.Progress.OrderOf(q))
                 .ThenBy(q => q.MinPlayerLevel)
                 .Select(q => new QuestRow(q))
@@ -537,6 +538,7 @@ public partial class MainWindow : Window
         var shown = rows.ToList();
         QuestsList.ItemsSource = shown;
         ApplySort(QuestsList, _questsSort); // список пересобран — сортировку вернуть
+        ApplyQuestGrouping();
 
         // Список длиннее, чем в игре, ровно на те квесты, которые игрок уже
         // сдал, а программа об этом не знает: игра нигде не хранит историю на
@@ -547,6 +549,28 @@ public partial class MainWindow : Window
             $"Показано: {shown.Count}. Выполненными известны {known} из {_allQuests.Count} — " +
             "остальные сданные программа считает доступными, пока их не отсканируешь " +
             $"({Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} на списке «Завершенные» у торговца).";
+    }
+
+    /// <summary>
+    /// Раскладывает список по разделам торговца — так же, как это делает игра
+    /// по своей галочке. Разделы известны из сканирования; у несканированных
+    /// квестов раздел берётся из условия лояльности в базе, а если и его нет —
+    /// они собираются в отдельную группу, чтобы не выдумывать.
+    /// </summary>
+    private void ApplyQuestGrouping()
+    {
+        var view = CollectionViewSource.GetDefaultView(QuestsList.ItemsSource);
+        if (view == null) return;
+
+        view.GroupDescriptions.Clear();
+        if (ChkGroupQuests.IsChecked == true)
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(QuestRow.Section)));
+        view.Refresh();
+    }
+
+    private void OnGroupQuestsChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) ApplyQuestGrouping();
     }
 
     /// <summary>Откат массовой отметки: ошибиться сканированием списка легко.</summary>
@@ -986,6 +1010,9 @@ public partial class MainWindow : Window
         /// <summary>«USEC»/«BEAR» у квестов своей фракции, пусто у общих.</summary>
         public string Faction => _quest.Faction;
         public string Level => _quest.MinPlayerLevel > 0 ? _quest.MinPlayerLevel.ToString() : "";
+
+        /// <summary>Раздел, в котором квест лежит у торговца в игре.</summary>
+        public string Section => App.Services.Progress.SectionName(_quest);
 
         /// <summary>Место квеста в цепочке: сдан, можно брать или ещё закрыт.</summary>
         public string Status => IsCompleted
