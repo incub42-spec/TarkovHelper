@@ -508,6 +508,74 @@ public static partial class FallbackDataClient
         System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
     private static partial System.Text.RegularExpressions.Regex WikiSuffixRegex();
 
+    /// <summary>Русское имя части цепочки: «Путевка в Санаторий. Часть 4».</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(.*?)[\s.,-]*(?:часть|part)\s*(\d+)\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex RuPartRegex();
+
+    /// <summary>Имена сравниваем без оглядки на регистр и «ё».</summary>
+    private static string FoldName(string s) =>
+        s.Trim().ToLowerInvariant().Replace('ё', 'е');
+
+    /// <summary>
+    /// Индекс вики по семействам цепочек: «путевка в санаторий» → части,
+    /// найденные в русских заголовках, с их английскими ключами.
+    /// </summary>
+    private static Dictionary<string, List<(int Part, string Key)>> BuildFamilyIndex(
+        IReadOnlyDictionary<string, string> map)
+    {
+        var index = new Dictionary<string, List<(int, string)>>();
+        foreach (var (key, ru) in map)
+        {
+            var m = RuPartRegex().Match(ru);
+            if (!m.Success || !int.TryParse(m.Groups[2].Value, out var part)) continue;
+            var family = FoldName(m.Groups[1].Value);
+            if (family.Length == 0) continue;
+            if (!index.TryGetValue(family, out var list))
+                index[family] = list = new List<(int, string)>();
+            list.Add((part, key));
+        }
+        return index;
+    }
+
+    /// <summary>
+    /// Нынешнее имя части цепочки. На вики два набора статей: старые, куда
+    /// ведёт ссылка из дампа («I Need More Power» → «Путевка в санаторий.
+    /// Часть 4»), и нынешние, названные по-новому («Spa Tour - Part 4» →
+    /// «Нужно больше энергии»). Английское имя семейства узнаём по любой
+    /// части, которая ещё зовётся по-старому, и берём из него свою.
+    /// </summary>
+    private static string? FamilyName(
+        IReadOnlyDictionary<string, string> map,
+        Dictionary<string, List<(int Part, string Key)>> index,
+        string ruName)
+    {
+        var m = RuPartRegex().Match(ruName);
+        if (!m.Success || !int.TryParse(m.Groups[2].Value, out var part)) return null;
+        var family = FoldName(m.Groups[1].Value);
+        if (!index.TryGetValue(family, out var parts)) return null;
+
+        // Ключ с номером надёжнее: он прямо называет семейство. Заголовок без
+        // номера берём только если пронумерованных не нашлось — у первой части
+        // цепочки номера в заголовке может не быть вовсе.
+        string? englishFamily = null;
+        foreach (var (otherPart, key) in parts)
+        {
+            var suffix = $" - Part {otherPart}";
+            if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) continue;
+            englishFamily = key[..^suffix.Length];
+            break;
+        }
+        englishFamily ??= parts.FirstOrDefault(p => p.Part == 1).Key;
+        if (englishFamily == null) return null;
+
+        if (!map.TryGetValue($"{englishFamily} - Part {part}", out var fresh)) return null;
+
+        // статья всё ещё названа по-старому — брать нечего
+        var check = RuPartRegex().Match(fresh);
+        return check.Success && FoldName(check.Groups[1].Value) == family ? null : fresh;
+    }
+
     private static string Humanize(string normalized) =>
         normalized.Length == 0
             ? "Станция"
@@ -524,6 +592,13 @@ public static partial class FallbackDataClient
     private static readonly Dictionary<string, string> ManualRussianNames = new()
     {
         ["Fall Ailment"] = "Осеннее недомогание",
+        // дамп ссылается на «Supplements», а статья называется «Vitamins - Part 2»
+        ["Supplements"] = "БАДы",
+        // этих статей на вики нет вовсе — имена сверены со списком в игре
+        ["Secret Message"] = "Тайное послание",
+        ["Demonstration Model"] = "Демонстрационный экземпляр",
+        // седьмой части «Путевки в санаторий» на вики нет под новым именем
+        ["Chemical Experiments"] = "Химические эксперименты",
     };
 
     /// <summary>
@@ -541,13 +616,17 @@ public static partial class FallbackDataClient
 
     private static IEnumerable<string> WikiKeys(string wikiTitle)
     {
-        yield return wikiTitle;
+        // «X - Part 1» важнее «X»: у первой части цепочки на вики бывают обе
+        // страницы, и статья без номера хранит прежнее название. У «Friend
+        // From the West» это «Друг с запада. Часть 1», а у «Friend From the
+        // West - Part 1» — «Друг с Запада», как сейчас в игре.
         yield return wikiTitle + " - Part 1";
+        yield return wikiTitle;
 
         var cut = wikiTitle.IndexOf(" [", StringComparison.Ordinal);
         if (cut <= 0) yield break;
-        yield return wikiTitle[..cut];
         yield return wikiTitle[..cut] + " - Part 1";
+        yield return wikiTitle[..cut];
     }
 
     /// <summary>
@@ -591,10 +670,19 @@ public static partial class FallbackDataClient
         // переименовании: у вики свой стиль оформления («Слава КПСС - Часть 1»
         // вместо «. Часть 1», «Резерв (квест)»), и по нему список разошёлся бы
         // с игрой в другую сторону.
+        var families = BuildFamilyIndex(map);
         foreach (var q in data.Quests)
         {
-            if (string.IsNullOrEmpty(q.WikiTitle)) continue;
-            if (WikiName(map, q.WikiTitle!) is not { } ru) continue;
+            // сначала пробуем по семейству цепочки: ссылка из дампа ведёт на
+            // статью со старым названием, а нынешнее лежит под «X - Part N»
+            var ru = FamilyName(map, families, q.Name)
+                     ?? (string.IsNullOrEmpty(q.WikiTitle)
+                         ? null
+                         : WikiName(map, q.WikiTitle!)
+                           ?? (ManualRussianNames.TryGetValue(q.WikiTitle!, out var manual)
+                               ? manual
+                               : null));
+            if (ru == null) continue;
 
             var clean = WikiSuffixRegex().Replace(ru, "").Trim();
             if (clean.Length == 0 || clean == q.Name) continue;
