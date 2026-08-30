@@ -26,7 +26,8 @@ public partial class TradersWindow : Window
         InitializeComponent();
 
         var p = App.Services.Progress;
-        _rows = traders.OrderBy(t => t).Select(t => new Row
+        // порядок как в игре: список глазами ищется по привычным местам
+        _rows = traders.Select(t => new Row
         {
             Name = t,
             Level = p.TraderLevels.TryGetValue(t, out var lvl) && lvl > 0 ? lvl.ToString() : "",

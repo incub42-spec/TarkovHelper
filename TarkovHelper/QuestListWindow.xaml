@@ -4,6 +4,7 @@
         Icon="app.ico"
         Title="Выполненные квесты"
         Width="820" Height="620"
+        Background="#FFF7F8FA" Foreground="#FF15181B"
         WindowStartupLocation="CenterOwner">
     <DockPanel Margin="8">
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
@@ -17,7 +18,7 @@
         </DockPanel>
         <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.7"
                    Text="Галочка отмечает квест выполненным; снятая — возвращает его в работу. В основном окне видны только доступные квесты."/>
-        <ListView x:Name="List" GridViewColumnHeader.Click="OnColumnHeaderClick">
+        <ListView x:Name="List" Background="White" Foreground="#FF15181B" GridViewColumnHeader.Click="OnColumnHeaderClick">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="Выполнен" Width="80">

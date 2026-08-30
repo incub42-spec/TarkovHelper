@@ -47,6 +47,24 @@ public static class FallbackDataClient
         ["6617beeaa9cfa777ca915b7c"] = ("Ref", "Реф"),
     };
 
+    /// <summary>
+    /// Порядок торговцев как в игре — по нему сортируются вкладки и списки.
+    /// По алфавиту получается непривычно: глаз ищет Прапора первым.
+    /// Смотритель и водитель БТР в игровой ленте не показываются, поэтому в конце.
+    /// </summary>
+    public static readonly IReadOnlyList<string> TraderOrder = new[]
+    {
+        "Прапор", "Терапевт", "Скупщик", "Лыжник", "Миротворец", "Механик",
+        "Барахольщик", "Егерь", "Реф", "Смотритель", "Водитель БТР",
+    };
+
+    /// <summary>Место торговца в игровом порядке; незнакомые — в конец.</summary>
+    public static int TraderRank(string trader)
+    {
+        var i = TraderOrder.ToList().IndexOf(trader);
+        return i < 0 ? TraderOrder.Count : i;
+    }
+
     /// <summary>normalizedName станции -> русское название в клиенте игры + алиасы.</summary>
     private static readonly Dictionary<string, (string Name, string[] Aliases)> StationsRu = new()
     {

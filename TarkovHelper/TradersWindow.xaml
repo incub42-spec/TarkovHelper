@@ -5,6 +5,7 @@
         Title="Торговцы"
         Width="480" SizeToContent="Height"
         ResizeMode="NoResize"
+        Background="#FFF7F8FA" Foreground="#FF15181B"
         WindowStartupLocation="CenterOwner">
     <StackPanel Margin="14">
         <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,10"

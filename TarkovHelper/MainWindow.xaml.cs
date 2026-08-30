@@ -155,8 +155,18 @@ public partial class MainWindow : Window
     /// <summary>Первый пункт — «не указана»: тогда показываем квесты обеих фракций.</summary>
     private static readonly List<string> FactionOptions = new() { "не указана", "USEC", "BEAR" };
 
+    /// <summary>Enter применяет уровень сразу: ждать ухода фокуса неочевидно.</summary>
+    private void OnPlayerLevelKey(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        ApplyPlayerLevel();
+        e.Handled = true;
+    }
+
+    private void OnPlayerLevelChanged(object sender, RoutedEventArgs e) => ApplyPlayerLevel();
+
     /// <summary>Уровень персонажа: по нему отсекаются квесты, до которых он не дорос.</summary>
-    private void OnPlayerLevelChanged(object sender, RoutedEventArgs e)
+    private void ApplyPlayerLevel()
     {
         if (!IsLoaded) return;
         var text = TxtPlayerLevel.Text.Trim();
@@ -416,7 +426,7 @@ public partial class MainWindow : Window
         _allQuests = data == null
             ? new List<QuestRow>()
             : data.Quests
-                .OrderBy(q => q.TraderName)
+                .OrderBy(q => FallbackDataClient.TraderRank(q.TraderName))
                 .ThenBy(q => q.MinPlayerLevel)
                 .Select(q => new QuestRow(q))
                 .ToList();
@@ -441,7 +451,7 @@ public partial class MainWindow : Window
             .Where(r => r.Status == "доступен")
             .Select(r => r.Trader)
             .Distinct()
-            .OrderBy(t => t)
+            .OrderBy(FallbackDataClient.TraderRank)
             .ToList();
 
         // выбранный торговец мог остаться без доступных квестов — возвращаемся ко всем
@@ -503,6 +513,7 @@ public partial class MainWindow : Window
             .Select(q => q.TraderName)
             .Where(t => t.Length > 0)
             .Distinct()
+            .OrderBy(FallbackDataClient.TraderRank)
             .ToList() ?? new List<string>();
         if (traders.Count == 0) return;
 
@@ -515,7 +526,7 @@ public partial class MainWindow : Window
     {
         var rows = _allQuests
             .Where(r => App.Services.Progress.Fits(r.Faction))
-            .OrderBy(r => r.Trader)
+            .OrderBy(r => FallbackDataClient.TraderRank(r.Trader))
             .ThenBy(r => r.Name)
             .ToList();
         new QuestListWindow(rows, "Все квесты", 0) { Owner = this }.ShowDialog();
@@ -591,7 +602,7 @@ public partial class MainWindow : Window
         var completed = _allQuests
             .Where(r => r.IsCompleted && App.Services.Progress.Fits(r.Faction))
             .OrderByDescending(r => r.CheckedSort)
-            .ThenBy(r => r.Trader)
+            .ThenBy(r => FallbackDataClient.TraderRank(r.Trader))
             .ThenBy(r => r.Name)
             .ToList();
 

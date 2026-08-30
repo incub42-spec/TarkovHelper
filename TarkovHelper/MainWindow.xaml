@@ -4,6 +4,7 @@
         Icon="app.ico"
         Title="Tarkov Helper — квесты, убежище и лут"
         Width="980" Height="680"
+        Background="#FFF7F8FA" Foreground="#FF15181B"
         WindowStartupLocation="CenterScreen">
   <DockPanel>
     <!-- панель профиля: какой персонаж и режим активны сейчас -->
@@ -22,7 +23,7 @@
                   SelectionChanged="OnFactionSelected"
                   ToolTip="У части квестов две версии — для USEC и для BEAR. Укажите фракцию, чтобы в списке остались только свои."/>
         <TextBlock Text="Уровень:" VerticalAlignment="Center" Margin="12,0,0,0"/>
-        <TextBox x:Name="TxtPlayerLevel" Width="50" Margin="6,0,0,0"
+        <TextBox x:Name="TxtPlayerLevel" Width="50" Margin="6,0,0,0" KeyDown="OnPlayerLevelKey"
                  VerticalContentAlignment="Center" TextAlignment="Center"
                  LostFocus="OnPlayerLevelChanged"
                  ToolTip="Уровень персонажа: квесты выше него считаются закрытыми. Пусто — не учитывать."/>
@@ -50,7 +51,7 @@
                 </DockPanel>
                 <!-- клик по заголовку сортирует; ключ сортировки берётся из
                      привязки столбца, см. SortKeyFor в коде -->
-                <ListView x:Name="ItemsList"
+                <ListView x:Name="ItemsList" Background="White" Foreground="#FF15181B"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.View>
                         <GridView>
@@ -117,6 +118,7 @@
                 <!-- описание выбранного квеста: у списка без него не видно, что делать -->
                 <Border DockPanel.Dock="Right" Width="330" Margin="8,0,0,0" Padding="10"
                         Background="#F2F4F6" BorderBrush="#D8DEE4" BorderThickness="1"
+                        TextElement.Foreground="#FF15181B"
                         CornerRadius="4">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
@@ -141,7 +143,7 @@
                     </ScrollViewer>
                 </Border>
 
-                <ListView x:Name="QuestsList"
+                <ListView x:Name="QuestsList" Background="White" Foreground="#FF15181B"
                           SelectionChanged="OnQuestSelected"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
