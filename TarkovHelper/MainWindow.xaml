@@ -316,7 +316,7 @@
                                 Content="Проверить" Click="OnYandexTestClick"/>
                         <TextBox x:Name="TxtYandexFolder" VerticalContentAlignment="Center"
                                  TextChanged="OnYandexFolderChanged"
-                                 ToolTip="Идентификатор каталога вида b1g… — он в адресе консоли после /folders/"/>
+                                 ToolTip="Идентификатор каталога (не облака!) — в консоли: информация об облаке → таблица «Каталоги», либо в адресе после /folders/"/>
                     </DockPanel>
                 </Grid>
                 <TextBlock x:Name="TxtYandexStatus" Margin="20,4,0,0" TextWrapping="Wrap" Opacity="0.7"/>
