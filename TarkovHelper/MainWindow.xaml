@@ -8,8 +8,10 @@
         WindowStartupLocation="CenterScreen">
   <DockPanel>
     <!-- панель профиля: какой персонаж и режим активны сейчас -->
+    <!-- панель тёмная, поэтому текст на ней задаём светлым: иначе подписи
+         сливаются с фоном -->
     <Border DockPanel.Dock="Top" Background="#1A2A33" Padding="10,7" Margin="6,6,6,0"
-            CornerRadius="4">
+            CornerRadius="4" TextElement.Foreground="#FFE6ECF1">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <TextBlock Text="Профиль:" VerticalAlignment="Center" FontWeight="SemiBold"/>
         <ComboBox x:Name="CmbProfile" Width="180" Margin="8,0,0,0"
