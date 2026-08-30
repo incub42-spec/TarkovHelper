@@ -1,4 +1,4 @@
-using TarkovHelper.Models;
+﻿using TarkovHelper.Models;
 
 namespace TarkovHelper.Services;
 
@@ -33,6 +33,11 @@ public sealed class NeededItemsIndex
         {
             if (progress.CompletedQuests.Contains(quest.Id)) continue;
             if (!progress.Fits(quest.Faction)) continue; // квест чужой фракции не выдадут
+
+            // Квест из середины цепочки торговец пока не выдаст, значит и лут
+            // для него нужен не сегодня. Помечаем «позже» — так же, как уровни
+            // убежища, до которых очередь ещё не дошла.
+            var questAvailable = progress.IsAvailable(quest);
             foreach (var obj in quest.ItemObjectives)
             {
                 foreach (var itemId in obj.ItemIds)
@@ -40,9 +45,11 @@ public sealed class NeededItemsIndex
                     Add(itemId, new Need
                     {
                         Kind = NeedKind.Quest,
-                        Source = $"{quest.TraderName}: {progress.NameOf(quest)}",
+                        Source = $"{quest.TraderName}: {progress.NameOf(quest)}" +
+                                 (questAvailable ? "" : " (позже)"),
                         Count = obj.Count,
                         FoundInRaid = obj.FoundInRaid,
+                        Available = questAvailable,
                     });
                 }
             }

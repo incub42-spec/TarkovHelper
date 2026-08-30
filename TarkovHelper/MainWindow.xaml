@@ -21,6 +21,11 @@
         <ComboBox x:Name="CmbFaction" Width="110" Margin="6,0,0,0"
                   SelectionChanged="OnFactionSelected"
                   ToolTip="У части квестов две версии — для USEC и для BEAR. Укажите фракцию, чтобы в списке остались только свои."/>
+        <TextBlock Text="Уровень:" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        <TextBox x:Name="TxtPlayerLevel" Width="50" Margin="6,0,0,0"
+                 VerticalContentAlignment="Center" TextAlignment="Center"
+                 LostFocus="OnPlayerLevelChanged"
+                 ToolTip="Уровень персонажа: квесты выше него считаются закрытыми. Пусто — не учитывать."/>
         <Button x:Name="BtnAddProfile" Content="Добавить" Width="90" Margin="12,0,0,0"
                 Click="OnAddProfileClick"/>
         <Button x:Name="BtnRenameProfile" Content="Переименовать" Width="120" Margin="6,0,0,0"
@@ -81,6 +86,9 @@
                          а не пятой вкладкой -->
                     <Button x:Name="BtnCompleted" DockPanel.Dock="Right" Width="160" Margin="0,0,12,0"
                             Content="Выполненные…" Click="OnShowCompletedClick"/>
+                    <ComboBox x:Name="CmbQuestStatus" DockPanel.Dock="Right" Width="150" Margin="0,0,12,0"
+                              SelectionChanged="OnQuestStatusFilterChanged"
+                              ToolTip="Доступные — те, у кого сданы все предыдущие квесты цепочки"/>
                     <TextBox x:Name="TxtQuestSearch" Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
                              TextChanged="OnQuestFilterChanged"
@@ -90,7 +98,7 @@
                      главы и оперативные туда не попадают, и это надо сказать явно,
                      иначе выглядит так, будто программа потеряла квесты -->
                 <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.7"
-                           Text="Здесь побочные задания торговцев — всё, что есть в базе (514 шт.). Сюжетных глав («Тур», «Небеса в огне») и оперативных заданий в источнике нет, отмечать их пока негде."/>
+                           Text="Статус считается по цепочке: «доступен» — все предыдущие квесты сданы, «закрыт» — нет. Здесь побочные задания торговцев, всё что есть в базе; сюжетных глав и оперативных заданий в источнике нет."/>
                 <ListView x:Name="QuestsList"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
@@ -114,6 +122,13 @@
                                             DisplayMemberBinding="{Binding Name}"/>
                             <GridViewColumn Header="Фракция" Width="70"
                                             DisplayMemberBinding="{Binding Faction}"/>
+                            <GridViewColumn Header="Статус" Width="90">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
                             <GridViewColumn Header="Уровень" Width="70"
                                             DisplayMemberBinding="{Binding Level}"/>
                             <GridViewColumn Header="Каппа" Width="60"

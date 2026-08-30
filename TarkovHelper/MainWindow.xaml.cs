@@ -138,6 +138,10 @@ public partial class MainWindow : Window
         Title = $"Tarkov Helper — {App.Services.Progress.Name} ({App.Services.Progress.ModeName})";
         BtnDeleteProfile.IsEnabled = s.Profiles.Count > 1;
 
+        TxtPlayerLevel.Text = App.Services.Progress.PlayerLevel > 0
+            ? App.Services.Progress.PlayerLevel.ToString()
+            : "";
+
         _switchingProfile = true;
         CmbFaction.ItemsSource = FactionOptions;
         CmbFaction.SelectedItem = App.Services.Progress.Faction switch
@@ -151,6 +155,20 @@ public partial class MainWindow : Window
 
     /// <summary>Первый пункт — «не указана»: тогда показываем квесты обеих фракций.</summary>
     private static readonly List<string> FactionOptions = new() { "не указана", "USEC", "BEAR" };
+
+    /// <summary>Уровень персонажа: по нему отсекаются квесты, до которых он не дорос.</summary>
+    private void OnPlayerLevelChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        var text = TxtPlayerLevel.Text.Trim();
+        var level = int.TryParse(text, out var parsed) && parsed is > 0 and <= 79 ? parsed : 0;
+        if (level == App.Services.Progress.PlayerLevel) return;
+
+        App.Services.Progress.PlayerLevel = level;
+        TxtPlayerLevel.Text = level > 0 ? level.ToString() : "";
+        App.Services.SaveProgress();   // индекс лута зависит от доступности квестов
+        ApplyQuestFilter();
+    }
 
     private void OnFactionSelected(object sender, SelectionChangedEventArgs e)
     {
@@ -406,9 +424,31 @@ public partial class MainWindow : Window
         ApplyQuestFilter();
     }
 
+    /// <summary>Варианты фильтра по цепочке квестов.</summary>
+    private static readonly List<string> QuestStatusOptions =
+        new() { "все квесты", "только доступные", "только закрытые" };
+
+    private void OnQuestStatusFilterChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded) ApplyQuestFilter();
+    }
+
     private void ApplyQuestFilter()
     {
+        if (CmbQuestStatus.ItemsSource == null)
+        {
+            CmbQuestStatus.ItemsSource = QuestStatusOptions;
+            CmbQuestStatus.SelectedIndex = 0;
+        }
+
         IEnumerable<QuestRow> rows = _allQuests;
+
+        rows = CmbQuestStatus.SelectedIndex switch
+        {
+            1 => rows.Where(r => r.Status == "доступен"),
+            2 => rows.Where(r => r.Status == "закрыт"),
+            _ => rows,
+        };
         // квесты чужой фракции игроку не выдадут — прячем, если фракция указана
         rows = rows.Where(r => App.Services.Progress.Fits(r.Faction));
 
@@ -681,7 +721,12 @@ public partial class MainWindow : Window
         {
             Name = n.Item.Name + (n.Item.IsQuestItem ? " [квестовый]" : "");
             HasPrimary = n.NeededForQuestOrHideout;
-            QuestText = n.QuestCount > 0 ? "×" + n.QuestCount : "";
+            // «×6 (2)» — всего нужно шесть, из них два для квестов, доступных сейчас
+            QuestText = n.QuestCount > 0
+                ? "×" + n.QuestCount + (n.QuestNowCount > 0 && n.QuestNowCount != n.QuestCount
+                    ? $" ({n.QuestNowCount})"
+                    : "")
+                : "";
             FirText = n.QuestFirCount > 0 ? "×" + n.QuestFirCount : "";
             // «×6 (2)» — всего нужно шесть, из них два для построек, доступных сейчас
             HideoutText = n.HideoutCount > 0
@@ -699,7 +744,7 @@ public partial class MainWindow : Window
                 .Where(x => x.Kind != NeedKind.Barter)
                 .Select(x => $"{x.Source} ×{x.Count}"));
 
-            QuestCount = n.QuestCount;
+            QuestCount = n.QuestNowCount > 0 ? n.QuestNowCount : n.QuestCount;
             FirCount = n.QuestFirCount;
             HideoutCount = n.HideoutCount;
             BarterCount = n.BarterUses;
@@ -739,6 +784,21 @@ public partial class MainWindow : Window
         /// <summary>«USEC»/«BEAR» у квестов своей фракции, пусто у общих.</summary>
         public string Faction => _quest.Faction;
         public string Level => _quest.MinPlayerLevel > 0 ? _quest.MinPlayerLevel.ToString() : "";
+
+        /// <summary>Место квеста в цепочке: сдан, можно брать или ещё закрыт.</summary>
+        public string Status => IsCompleted
+            ? "выполнен"
+            : App.Services.Progress.IsAvailable(_quest) ? "доступен" : "закрыт";
+
+        public Brush StatusBrush => Status switch
+        {
+            "доступен" => CheckedBrush,     // зелёный: можно брать прямо сейчас
+            "закрыт" => UncheckedBrush,     // красный: цепочка не пройдена
+            _ => MutedTextBrush,
+        };
+
+        /// <summary>Сколько квестов цепочки ещё не сдано — для сортировки по близости.</summary>
+        public int Blockers => _quest.Requires.Count(id => !App.Services.Progress.CompletedQuests.Contains(id));
         public string Kappa => _quest.KappaRequired ? "да" : "";
 
         // значения для сортировки: по тексту «10» шло бы перед «2», а дата — перед галочкой
@@ -856,6 +916,8 @@ public partial class MainWindow : Window
         new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32));   // зелёный: подтверждено
     private static readonly Brush UncheckedBrush =
         new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));   // красный: ещё не проверяли
+    private static readonly Brush MutedTextBrush =
+        new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));   // серый: уже сдан
     private static readonly Brush ImpliedBrush =
         new SolidColorBrush(Color.FromRgb(0xE6, 0x8A, 0x00));   // янтарный: выведено, не увидено
 }

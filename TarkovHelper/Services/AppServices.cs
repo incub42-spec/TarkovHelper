@@ -46,7 +46,9 @@ public sealed class AppServices
                          Data.Quests.All(q => q.Faction.Length == 0);
         // признак оружия появился позже — по нему подписываем, что цена без обвеса
         var noWeapons = Data is { Items.Count: > 0 } && Data.Items.All(i => !i.IsWeapon);
-        if (noStationReqs || noFactions || noWeapons)
+        // цепочки квестов появились позже — без них всё выглядит доступным
+        var noChains = Data is { Quests.Count: > 0 } && Data.Quests.All(q => q.Requires.Count == 0);
+        if (noStationReqs || noFactions || noWeapons || noChains)
             _ = RefreshDataAsync();
     }
 

@@ -62,6 +62,11 @@ public sealed class Quest
     /// но разными идентификаторами — игроку доступна только своя.
     /// </summary>
     public string Faction { get; set; } = "";
+    /// <summary>
+    /// Квесты, которые надо сдать до этого. Из них складывается цепочка
+    /// прокачки: пока предыдущий не сдан, этот у торговца не появится.
+    /// </summary>
+    public List<string> Requires { get; set; } = new();
 }
 
 public sealed class TradeRequirement

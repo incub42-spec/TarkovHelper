@@ -493,8 +493,10 @@ public partial class OverlayWindow : Window
         var hideoutNeeds = needs?.Needs.Where(n => n.Kind == NeedKind.Hideout).ToList() ?? new List<Need>();
         var barterNeeds = needs?.Needs.Where(n => n.Kind == NeedKind.Barter).ToList() ?? new List<Need>();
 
-        foreach (var n in questNeeds)
-            lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : ""), QuestBrush));
+        // сначала квесты, которые уже можно взять; «позже» — приглушённым
+        foreach (var n in questNeeds.OrderByDescending(n => n.Available))
+            lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : ""),
+                n.Available ? QuestBrush : MutedBrush));
 
         // сначала то, что можно строить прямо сейчас; «позже» — приглушённым
         foreach (var n in hideoutNeeds.OrderByDescending(n => n.Available))

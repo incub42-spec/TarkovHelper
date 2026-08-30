@@ -1,4 +1,4 @@
-namespace TarkovHelper.Models;
+﻿namespace TarkovHelper.Models;
 
 public enum NeedKind
 {
@@ -30,6 +30,9 @@ public sealed class ItemNeeds
     public List<Need> Needs { get; set; } = new();
 
     public int QuestCount => Needs.Where(n => n.Kind == NeedKind.Quest).Sum(n => n.Count);
+    /// <summary>Сколько нужно для квестов, которые уже можно взять у торговца.</summary>
+    public int QuestNowCount =>
+        Needs.Where(n => n.Kind == NeedKind.Quest && n.Available).Sum(n => n.Count);
     public int QuestFirCount => Needs.Where(n => n.Kind == NeedKind.Quest && n.FoundInRaid).Sum(n => n.Count);
     public int HideoutCount => Needs.Where(n => n.Kind == NeedKind.Hideout).Sum(n => n.Count);
     /// <summary>Сколько нужно для построек, доступных прямо сейчас.</summary>

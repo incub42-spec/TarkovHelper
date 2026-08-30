@@ -1,4 +1,4 @@
-namespace TarkovHelper.Models;
+﻿namespace TarkovHelper.Models;
 
 /// <summary>
 /// Профиль персонажа: свой прогресс и свой режим игры. У PvE и PvP персонажи
@@ -15,6 +15,11 @@ public sealed class Progress
     /// квестов две версии, и своей фракции доступна только одна из них.
     /// </summary>
     public string Faction { get; set; } = "";
+    /// <summary>
+    /// Уровень персонажа. 0 — не указан, тогда требования по уровню не учитываем.
+    /// Нужен, чтобы не считать доступными квесты, до которых игрок не дорос.
+    /// </summary>
+    public int PlayerLevel { get; set; }
     public HashSet<string> CompletedQuests { get; set; } = new();
     /// <summary>Ид станции убежища -> построенный уровень (0 = не построено).</summary>
     public Dictionary<string, int> HideoutLevels { get; set; } = new();
@@ -38,17 +43,27 @@ public sealed class Progress
 
     public string ModeName => PveMode ? "PvE" : "PvP";
 
-    /// <summary>
-    /// Доступен ли квест этому персонажу. Квест чужой фракции игроку не выдадут,
-    /// поэтому его не показываем и лут для него не собираем. Пока фракция не
-    /// выбрана, показываем всё — иначе молча спрячем половину списка.
-    /// </summary>
     /// <summary>Название квеста с учётом ручного переименования.</summary>
     public string NameOf(Quest quest) =>
         QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0
             ? custom
             : quest.Name;
 
+    /// <summary>
+    /// Квест можно взять прямо сейчас: сам не сдан, а все предыдущие в цепочке
+    /// сданы. Пока цепочка не пройдена, торговец его не выдаст — значит и лут
+    /// для него собирать не срочно.
+    /// </summary>
+    public bool IsAvailable(Quest quest) =>
+        !CompletedQuests.Contains(quest.Id) &&
+        quest.Requires.All(CompletedQuests.Contains) &&
+        (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel);
+
+    /// <summary>
+    /// Доступен ли квест этому персонажу. Квест чужой фракции игроку не выдадут,
+    /// поэтому его не показываем и лут для него не собираем. Пока фракция не
+    /// выбрана, показываем всё — иначе молча спрячем половину списка.
+    /// </summary>
     public bool Fits(string questFaction) =>
         questFaction.Length == 0 || Faction.Length == 0 ||
         string.Equals(questFaction, Faction, StringComparison.OrdinalIgnoreCase);

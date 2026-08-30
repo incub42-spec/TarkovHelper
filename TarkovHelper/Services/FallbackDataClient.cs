@@ -235,6 +235,18 @@ public static class FallbackDataClient
                 // «USEC»/«BEAR» у квестов, которые выдаются только своей фракции
                 Faction = Str(t, "factionName") is "USEC" or "BEAR" ? Str(t, "factionName") : "",
                 MinPlayerLevel = Int(t, "minPlayerLevel") ?? 0,
+                // цепочка квестов: учитываем только условие «сдан», остальные
+                // статусы (активен, провален) — это ветвления, а не порядок
+                Requires = t.TryGetProperty("taskRequirements", out var treq) &&
+                           treq.ValueKind == JsonValueKind.Array
+                    ? treq.EnumerateArray()
+                        .Where(r => r.TryGetProperty("status", out var st) &&
+                                    st.ValueKind == JsonValueKind.Array &&
+                                    st.EnumerateArray().Any(x => x.GetString() == "complete"))
+                        .Select(r => Str(r, "task"))
+                        .Where(id => id.Length > 0)
+                        .ToList()
+                    : new List<string>(),
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
             };
 
