@@ -297,6 +297,10 @@ public partial class OverlayWindow : Window
                 return;
             }
 
+            // порядок строк кадра — единственный источник игрового порядка
+            if (result.Trader is { } listTrader)
+                App.Services.RememberQuestOrder(listTrader, result.Ordered);
+
             var added = App.Services.MarkQuestsCompleted(result.Completed);
             var failed = App.Services.MarkQuestsFailed(result.Failed);
             // всё, что торговец сейчас показывает, он уже выдал: предыдущие

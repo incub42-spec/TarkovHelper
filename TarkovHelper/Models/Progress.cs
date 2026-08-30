@@ -67,6 +67,42 @@ public sealed class Progress
     /// </summary>
     public HashSet<string> ActiveQuests { get; set; } = new();
 
+    /// <summary>
+    /// Порядок квестов у каждого торговца — такой, каким его показывает игра.
+    /// Из данных он не выводится: это не алфавит, не уровень и не порядок в
+    /// дампе, а хронология выдачи в конкретном профиле. Зато его видно на
+    /// экране, поэтому запоминаем при сканировании списка.
+    /// </summary>
+    public Dictionary<string, List<string>> QuestOrder { get; set; } = new();
+
+    /// <summary>Место квеста в списке торговца; в конец — если не видели.</summary>
+    public int OrderOf(Quest quest)
+    {
+        if (!QuestOrder.TryGetValue(quest.TraderName, out var list)) return int.MaxValue;
+        var i = list.IndexOf(quest.Id);
+        return i < 0 ? int.MaxValue : i;
+    }
+
+    /// <summary>
+    /// Вплетает порядок очередного кадра в уже известный. Список длиннее
+    /// экрана читается по частям, и кадры надо склеить: уже знакомые строки
+    /// служат якорями, новые встают сразу после своего предшественника.
+    /// </summary>
+    public void RememberOrder(string trader, IEnumerable<Quest> seen)
+    {
+        if (!QuestOrder.TryGetValue(trader, out var list))
+            QuestOrder[trader] = list = new List<string>();
+
+        var at = -1;
+        foreach (var quest in seen)
+        {
+            var i = list.IndexOf(quest.Id);
+            if (i >= 0) { at = i; continue; }
+            at = at < 0 ? 0 : at + 1;
+            list.Insert(at, quest.Id);
+        }
+    }
+
     /// <summary>Название квеста с учётом ручного переименования.</summary>
     public string NameOf(Quest quest) =>
         QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0

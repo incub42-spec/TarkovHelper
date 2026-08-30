@@ -85,7 +85,7 @@ internal static partial class QuestMatcher
     /// </summary>
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
-        List<Quest> Unknown,
+        List<Quest> Unknown, List<Quest> Ordered,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -216,6 +216,8 @@ internal static partial class QuestMatcher
         var failed = new List<Quest>();
         var fresh = new List<Quest>();
         var unknown = new List<Quest>();
+        // порядок строк сверху вниз: в игре он свой, из данных не выводится
+        var ordered = new List<Quest>();
         var debug = new System.Text.StringBuilder();
 
         foreach (var row in rows)
@@ -237,6 +239,7 @@ internal static partial class QuestMatcher
                              $"({hit.Score:F2}, {status})");
 
             if (hit.Quest == null) continue;
+            ordered.Add(hit.Quest);
             if (isFailed) failed.Add(hit.Quest);
             else if (isActive) active.Add(hit.Quest);
             else if (isDone) completed.Add(hit.Quest);
@@ -244,7 +247,7 @@ internal static partial class QuestMatcher
             else unknown.Add(hit.Quest);
         }
 
-        return new Result(completed, active, failed, fresh, unknown, area, lines.Count,
+        return new Result(completed, active, failed, fresh, unknown, ordered, area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),
             rows.Count == 0 ? 0 : rows[^1].Y);

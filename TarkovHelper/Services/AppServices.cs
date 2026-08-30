@@ -267,6 +267,15 @@ public sealed class AppServices
         return marked;
     }
 
+    /// <summary>Запоминает порядок квестов у торговца, увиденный в кадре.</summary>
+    public void RememberQuestOrder(string trader, IEnumerable<Quest> seen)
+    {
+        var ordered = seen.Where(q => q.TraderName == trader).ToList();
+        if (ordered.Count == 0) return;
+        Progress.RememberOrder(trader, ordered);
+        SaveProgress();
+    }
+
     /// <summary>Откат последнего сканирования списка квестов.</summary>
     public int UndoQuestScan()
     {

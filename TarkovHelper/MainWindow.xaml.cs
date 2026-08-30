@@ -461,6 +461,9 @@ public partial class MainWindow : Window
             ? new List<QuestRow>()
             : data.Quests
                 .OrderBy(q => FallbackDataClient.TraderRank(q.TraderName))
+                // порядок, увиденный при сканировании: так же, как в игре.
+                // Чего не сканировали — следом, по уровню
+                .ThenBy(q => App.Services.Progress.OrderOf(q))
                 .ThenBy(q => q.MinPlayerLevel)
                 .Select(q => new QuestRow(q))
                 .ToList();
