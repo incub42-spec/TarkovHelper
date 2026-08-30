@@ -796,24 +796,56 @@ public partial class OverlayWindow : Window
                 ? ids.Sum(progress.InStash)
                 : App.Services.InStashByName(item.Id);
 
-        // Нужное уже собрано — брать не надо. Условие «найден в рейде» так не
-        // закрыть: отметки FIR у схрона нет, а поднятое с пола ей не заменить.
-        bool Covered(Need need) => !need.FoundInRaid && Have(need) >= need.Count;
+        // Один и тот же схрон закрывает цели по очереди, а не каждую целиком:
+        // десять проводов — это либо «Отопление ур. 3», либо «Безопасность
+        // ур. 3», но не обе сразу. Поэтому запас тратим по мере обхода списка,
+        // и «есть» достаётся ровно тем строкам, на которые его хватило.
+        var pools = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        bool Covered(Need need)
+        {
+            // Условие «найден в рейде» схроном не закрыть: отметки FIR у него
+            // нет, а поднятое с пола ей не заменить.
+            if (need.FoundInRaid) return false;
+
+            var key = need.GroupKey.Length > 0 ? need.GroupKey : item.Id;
+            if (!pools.TryGetValue(key, out var left)) left = Have(need);
+            if (left < need.Count) return false;
+
+            pools[key] = left - need.Count;
+            return true;
+        }
 
         var stash = App.Services.InStashByName(item.Id);
-        if (stash > 0) lines.Add(($"В схроне: {stash}", OkBrush));
+        var wanted = questNeeds.Concat(hideoutNeeds)
+            .Where(n => n.Available && !n.FoundInRaid)
+            .Sum(n => n.Count);
+        // «Всего» — по всем квестам и уровням станций, включая дальние: видно,
+        // стоит ли копить впрок, когда сегодняшнее уже закрыто
+        var total = questNeeds.Concat(hideoutNeeds).Sum(n => n.Count);
+        if (stash > 0 || total > 0)
+            lines.Add(($"В схроне: {stash}" +
+                       (wanted > 0 ? $" · нужно сейчас: {wanted}" : "") +
+                       (total > wanted ? $" · всего: {total}" : ""),
+                stash >= wanted ? OkBrush : TitleBrush));
 
         // сначала квесты, которые уже можно взять; «позже» — приглушённым,
         // собранное — зелёным, чтобы не набирать лишнего
         foreach (var n in questNeeds.OrderByDescending(n => n.Available))
+        {
+            var covered = Covered(n);
             lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : "") +
-                       (Covered(n) ? "  — есть" : ""),
-                Covered(n) ? OkBrush : n.Available ? QuestBrush : MutedBrush));
+                       (covered ? "  — есть" : ""),
+                covered ? OkBrush : n.Available ? QuestBrush : MutedBrush));
+        }
 
         // сначала то, что можно строить прямо сейчас; «позже» — приглушённым
         foreach (var n in hideoutNeeds.OrderByDescending(n => n.Available))
-            lines.Add(($"● {n.Source} — ×{n.Count}" + (Covered(n) ? "  — есть" : ""),
-                Covered(n) ? OkBrush : n.Available ? HideoutBrush : MutedBrush));
+        {
+            var covered = Covered(n);
+            lines.Add(($"● {n.Source} — ×{n.Count}" + (covered ? "  — есть" : ""),
+                covered ? OkBrush : n.Available ? HideoutBrush : MutedBrush));
+        }
 
         if (barterNeeds.Count > 0)
         {
