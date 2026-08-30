@@ -785,14 +785,35 @@ public partial class OverlayWindow : Window
         var hideoutNeeds = needs?.Needs.Where(n => n.Kind == NeedKind.Hideout).ToList() ?? new List<Need>();
         var barterNeeds = needs?.Needs.Where(n => n.Kind == NeedKind.Barter).ToList() ?? new List<Need>();
 
-        // сначала квесты, которые уже можно взять; «позже» — приглушённым
+        // Сколько такого уже лежит в схроне. У целей, где подходит несколько
+        // предметов, считаем по всей группе: пятнадцать наушников любых моделей
+        // — это пятнадцать штук всего.
+        var index = App.Services.Index!;
+        var progress = App.Services.Progress;
+
+        int Have(Need need) =>
+            need.GroupKey.Length > 0 && index.GroupItems.TryGetValue(need.GroupKey, out var ids)
+                ? ids.Sum(progress.InStash)
+                : App.Services.InStashByName(item.Id);
+
+        // Нужное уже собрано — брать не надо. Условие «найден в рейде» так не
+        // закрыть: отметки FIR у схрона нет, а поднятое с пола ей не заменить.
+        bool Covered(Need need) => !need.FoundInRaid && Have(need) >= need.Count;
+
+        var stash = App.Services.InStashByName(item.Id);
+        if (stash > 0) lines.Add(($"В схроне: {stash}", OkBrush));
+
+        // сначала квесты, которые уже можно взять; «позже» — приглушённым,
+        // собранное — зелёным, чтобы не набирать лишнего
         foreach (var n in questNeeds.OrderByDescending(n => n.Available))
-            lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : ""),
-                n.Available ? QuestBrush : MutedBrush));
+            lines.Add(($"● {n.Source} — ×{n.Count}" + (n.FoundInRaid ? "  (нужен FIR)" : "") +
+                       (Covered(n) ? "  — есть" : ""),
+                Covered(n) ? OkBrush : n.Available ? QuestBrush : MutedBrush));
 
         // сначала то, что можно строить прямо сейчас; «позже» — приглушённым
         foreach (var n in hideoutNeeds.OrderByDescending(n => n.Available))
-            lines.Add(($"● {n.Source} — ×{n.Count}", n.Available ? HideoutBrush : MutedBrush));
+            lines.Add(($"● {n.Source} — ×{n.Count}" + (Covered(n) ? "  — есть" : ""),
+                Covered(n) ? OkBrush : n.Available ? HideoutBrush : MutedBrush));
 
         if (barterNeeds.Count > 0)
         {
