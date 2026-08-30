@@ -682,6 +682,90 @@ public static partial class FallbackDataClient
         return check.Success && FoldName(check.Groups[1].Value) == family ? null : fresh;
     }
 
+    /// <summary>Английский заголовок части цепочки: «The Punisher - Part 2» → («The Punisher», 2).</summary>
+    private static (string Family, int Part)? EnglishPart(string? wikiTitle)
+    {
+        if (string.IsNullOrEmpty(wikiTitle)) return null;
+        var dash = wikiTitle.LastIndexOf(" - Part ", StringComparison.OrdinalIgnoreCase);
+        if (dash <= 0) return null;
+        return int.TryParse(wikiTitle[(dash + 8)..].Trim(), out var part)
+            ? (wikiTitle[..dash], part)
+            : null;
+    }
+
+    /// <summary>
+    /// Нумерация частей цепочки — из английского заголовка вики: ссылка на него
+    /// лежит в дампе, и он совпадает с нынешней игрой. Локаль отстаёт на год, а
+    /// русская вика для «Карателя» и вовсе отдаёт двум разным частям одно имя.
+    /// В игре первая часть — двадцать пять диких из АКС-74У на Таможне, и это
+    /// «The Punisher - Part 1»; локаль зовёт её третьей.
+    ///
+    /// Отдельным проходом: разница только в цифре, и общая проверка «имя
+    /// изменилось не только оформлением» такую правку не пропускает.
+    /// </summary>
+    private static void RenumberChains(List<Quest> quests)
+    {
+        // Русское имя семейства берём у частей, где номера уже сошлись: у
+        // «Gunsmith Master» это «Оружейник - Мастер», и остальные его части
+        // должны зваться так же, а не «Оружейник», как их назвала локаль.
+        var families = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var q in quests)
+        {
+            if (EnglishPart(q.WikiTitle) is not { } en) continue;
+            var m = RuPartRegex().Match(q.Name);
+            if (!m.Success || !int.TryParse(m.Groups[2].Value, out var part)) continue;
+            if (part != en.Part) continue;
+            families.TryAdd(en.Family, m.Groups[1].Value.Trim());
+        }
+
+        // Трогаем только те имена, что до сих пор пронумерованы локалью:
+        // часть, которой вики уже дала своё имя («Секрет успеваемости»),
+        // обратно в «Часть 2» превращать нельзя.
+        var planned = new Dictionary<Quest, string>();
+        foreach (var q in quests)
+        {
+            if (EnglishPart(q.WikiTitle) is not { } en) continue;
+            var m = RuPartRegex().Match(q.Name);
+            if (!m.Success) continue;
+
+            var family = families.TryGetValue(en.Family, out var known)
+                ? known
+                : m.Groups[1].Value.Trim();
+            if (family.Length == 0) continue;
+
+            var name = $"{family}. Часть {en.Part}";
+            if (name != q.Name) planned[q] = name;
+        }
+
+        // Два задания иногда ссылаются на одну статью вики, и тогда один номер
+        // достаётся обоим. Дубль в списке хуже старого номера, поэтому спорные
+        // переименования отменяем — и повторяем проверку: отменённое задание
+        // возвращает себе прежнее имя и может столкнуться уже с ним.
+        bool again;
+        do
+        {
+            again = false;
+            var byName = new Dictionary<string, List<Quest>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var q in quests)
+            {
+                var name = planned.TryGetValue(q, out var fresh) ? fresh : q.Name;
+                if (!byName.TryGetValue(name, out var list)) byName[name] = list = new List<Quest>();
+                list.Add(q);
+            }
+
+            foreach (var group in byName.Values.Where(g => g.Count > 1))
+            foreach (var q in group)
+                if (planned.Remove(q)) again = true;
+        }
+        while (again);
+
+        foreach (var (q, name) in planned)
+        {
+            q.NameAlt ??= q.Name;   // прежнее имя ещё пригодится при распознавании
+            q.Name = name;
+        }
+    }
+
     private static string Humanize(string normalized) =>
         normalized.Length == 0
             ? "Станция"
@@ -839,6 +923,8 @@ public static partial class FallbackDataClient
             q.NameAlt = q.Name;
             q.Name = clean;
         }
+
+        RenumberChains(data.Quests);
 
         foreach (var i in items)
         {
