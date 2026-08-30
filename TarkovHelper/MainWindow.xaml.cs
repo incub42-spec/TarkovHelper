@@ -749,6 +749,17 @@ public partial class MainWindow : Window
                                   prefix + string.Join("; ", shown.Select(c => c.Describe()));
         }
 
+        // локаль от марта 2025: у переработанных заданий текст расходится с игрой
+        if (q.Objectives.Any(o => !o.Translated))
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  "Задание переработали в игре: локаль знает не все его цели, " +
+                                  "и описание может быть от старой версии.";
+
+        // Торговец его не показал при обходе списка — значит ещё не выдал
+        if (App.Services.Progress.NotIssued.Contains(q.Id))
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  "Торговец пока не выдал: при обходе списка квеста в нём не было.";
+
         // Квест, увиденный сканированием со статусом «активно!», торговец уже
         // выдал — что бы ни говорили требования из базы. Без этой строки
         // получается ерунда: «доступен», а рядом «не хватает уровня».

@@ -129,6 +129,12 @@ public sealed class QuestObjective
     public bool Optional { get; set; }
     /// <summary>Сколько раз («Убить Диких» ×5); 0 — количество не задано.</summary>
     public int Count { get; set; }
+    /// <summary>
+    /// Текст цели взят из локали. Если нет — локаль отстала от игры и цели
+    /// не знает вовсе; тогда показываем хотя бы её тип, чтобы не выглядело
+    /// так, будто у квеста целей меньше, чем на самом деле.
+    /// </summary>
+    public bool Translated { get; set; } = true;
 }
 
 public sealed class TradeRequirement
@@ -181,7 +187,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 14;
+    public const int CurrentSchema = 16;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

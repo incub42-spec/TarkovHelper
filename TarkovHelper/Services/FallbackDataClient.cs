@@ -317,13 +317,18 @@ public static partial class FallbackDataClient
                 foreach (var o in allObjs.EnumerateArray())
                 {
                     var text = LocaleStr(sptRu, Str(o, "id"));
-                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    var translated = !string.IsNullOrWhiteSpace(text);
+                    // Локаль отстаёт: у «Следопыта» она знает старую цель и не
+                    // знает двух новых. Молча их выбрасывать нельзя — выходит,
+                    // что у квеста целей меньше, чем в игре.
+                    if (!translated) text = ObjectiveKind(Str(o, "type"));
                     quest.Objectives.Add(new QuestObjective
                     {
                         Text = text!,
                         Optional = o.TryGetProperty("optional", out var opt) &&
                                    opt.ValueKind == JsonValueKind.True,
                         Count = Int(o, "count") ?? 0,
+                        Translated = translated,
                     });
                 }
             }
@@ -570,6 +575,38 @@ public static partial class FallbackDataClient
     }
 
     /// <summary>
+    /// Имя по «хвосту» английского заголовка. У Механика цепочка «Оружейник»
+    /// в локали пронумерована — «Часть 7», — а игра называет части по оружию.
+    /// На вики это видно прямо в ключе: «Gunsmith - M4A1» переводится как
+    /// «Оружейник. Часть 7». Значит имя части — это семейство плюс хвост
+    /// ключа. Хвост оставляем латиницей: игра пишет «М4А1» кириллицей, но
+    /// сравнение свёртывает похожие буквы, и строка всё равно узнаётся.
+    /// </summary>
+    private static string? SuffixName(IReadOnlyDictionary<string, string> map, string ruName)
+    {
+        var m = RuPartRegex().Match(ruName);
+        if (!m.Success) return null;
+        var family = m.Groups[1].Value.Trim();
+        if (family.Length == 0) return null;
+
+        foreach (var (key, ru) in map)
+        {
+            if (!string.Equals(FoldName(ru), FoldName(ruName), StringComparison.Ordinal)) continue;
+
+            var dash = key.IndexOf(" - ", StringComparison.Ordinal);
+            if (dash <= 0) continue;
+
+            var tail = key[(dash + 3)..].Trim();
+            if (tail.Length == 0) continue;
+            // «Cargo X - Part 3» — это тот же номер, ничего нового он не даёт
+            if (tail.StartsWith("Part ", StringComparison.OrdinalIgnoreCase)) continue;
+
+            return $"{family}. {tail}";
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Нынешнее имя части цепочки. На вики два набора статей: старые, куда
     /// ведёт ссылка из дампа («I Need More Power» → «Путевка в санаторий.
     /// Часть 4»), и нынешние, названные по-новому («Spa Tour - Part 4» →
@@ -611,6 +648,24 @@ public static partial class FallbackDataClient
         normalized.Length == 0
             ? "Станция"
             : char.ToUpperInvariant(normalized[0]) + normalized[1..].Replace('-', ' ');
+
+    /// <summary>Чем цель является, когда её текста в локали нет.</summary>
+    private static string ObjectiveKind(string type) => type switch
+    {
+        "visit" => "Посетить место на карте",
+        "findItem" or "findQuestItem" => "Найти предмет в рейде",
+        "giveItem" or "giveQuestItem" => "Передать предметы",
+        "plantItem" or "plantQuestItem" => "Заложить предмет",
+        "shoot" => "Устранить цели",
+        "extract" => "Выйти с локации",
+        "mark" => "Пометить маркером",
+        "skill" => "Прокачать навык",
+        "traderLevel" => "Поднять уровень торговца",
+        "taskStatus" => "Выполнить другое задание",
+        "buildWeapon" => "Собрать оружие",
+        "experience" => "Набрать опыт",
+        _ => "Цель без описания",
+    };
 
     /// <summary>Заголовок статьи вики из ссылки: «…/wiki/Fresh_Stock» → «Fresh Stock».</summary>
     private static string? WikiTitle(string? wikiLink) => NameFromWikiLink(wikiLink);
@@ -716,6 +771,7 @@ public static partial class FallbackDataClient
                          ? manual
                          : null)
                      ?? FamilyName(map, families, q.Name)
+                     ?? SuffixName(map, q.Name)
                      ?? (string.IsNullOrEmpty(q.WikiTitle) ? null : WikiName(map, q.WikiTitle!));
             if (ru == null) continue;
 
