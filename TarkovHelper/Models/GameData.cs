@@ -68,10 +68,31 @@ public sealed class Quest
     /// </summary>
     public List<string> Requires { get; set; } = new();
 
+    /// <summary>
+    /// Условия по торговцам: уровень лояльности или репутация. Именно из-за них
+    /// список расходится с игрой — например, цепочка «Возмещение ущерба» у
+    /// Скупщика выдаётся только при отрицательной репутации.
+    /// </summary>
+    public List<TraderCondition> TraderConditions { get; set; } = new();
+
     /// <summary>Текст задания от торговца (из локали; у новых квестов пусто).</summary>
     public string Description { get; set; } = "";
     /// <summary>Что нужно сделать — все цели, а не только «принести предметы».</summary>
     public List<QuestObjective> Objectives { get; set; } = new();
+}
+
+/// <summary>Условие по торговцу: «репутация ≥ 4», «уровень ≥ 2».</summary>
+public sealed class TraderCondition
+{
+    public string TraderName { get; set; } = "";
+    /// <summary>«level» — уровень лояльности, «reputation» — репутация.</summary>
+    public string Kind { get; set; } = "";
+    /// <summary>Знак сравнения из данных: &gt;=, &lt;=, &gt;, &lt;, =.</summary>
+    public string Compare { get; set; } = ">=";
+    public double Value { get; set; }
+
+    public string Describe() =>
+        $"{TraderName}: {(Kind == "reputation" ? "репутация" : "уровень")} {Compare} {Value:0.##}";
 }
 
 /// <summary>Одна цель квеста для показа игроку.</summary>
@@ -133,7 +154,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 2;
+    public const int CurrentSchema = 3;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

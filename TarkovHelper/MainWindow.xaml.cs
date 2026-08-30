@@ -496,6 +496,20 @@ public partial class MainWindow : Window
         if (IsLoaded) ApplyQuestFilter();
     }
 
+    /// <summary>Уровни и репутация торговцев — по ним отсекаются недоступные квесты.</summary>
+    private void OnTradersClick(object sender, RoutedEventArgs e)
+    {
+        var traders = App.Services.Data?.Quests
+            .Select(q => q.TraderName)
+            .Where(t => t.Length > 0)
+            .Distinct()
+            .ToList() ?? new List<string>();
+        if (traders.Count == 0) return;
+
+        if (new TradersWindow(traders) { Owner = this }.ShowDialog() == true)
+            ApplyQuestFilter();
+    }
+
     /// <summary>Полный список — отдельным окном: в основном показываем только доступные.</summary>
     private void OnShowAllQuestsClick(object sender, RoutedEventArgs e)
     {
@@ -556,6 +570,16 @@ public partial class MainWindow : Window
             : q.Requires.Count > 0
                 ? "Цепочка перед ним пройдена."
                 : "";
+
+        // условия по торговцу — вторая причина, по которой квеста нет в игре
+        if (q.TraderConditions.Count > 0)
+        {
+            var unmet = q.TraderConditions.Where(c => !App.Services.Progress.Meets(c)).ToList();
+            var shown = unmet.Count > 0 ? unmet : q.TraderConditions;
+            var prefix = unmet.Count > 0 ? "Не хватает: " : "Условия торговца: ";
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  prefix + string.Join("; ", shown.Select(c => c.Describe()));
+        }
     }
 
     /// <summary>

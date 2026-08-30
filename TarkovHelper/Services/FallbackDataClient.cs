@@ -250,6 +250,27 @@ public static class FallbackDataClient
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
             };
 
+            // Условия по торговцам: без них список расходится с игрой — квест
+            // может требовать не только уровень лояльности, но и репутацию,
+            // причём иногда отрицательную.
+            if (t.TryGetProperty("traderRequirements", out var trreq) &&
+                trreq.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var r in trreq.EnumerateArray())
+                {
+                    var kind = Str(r, "requirementType");
+                    if (kind is not ("level" or "reputation")) continue;
+                    var trId = Str(r, "trader");
+                    quest.TraderConditions.Add(new TraderCondition
+                    {
+                        TraderName = Traders.TryGetValue(trId, out var tr) ? tr.Ru : "Торговец",
+                        Kind = kind,
+                        Compare = Str(r, "compareMethod") is { Length: > 0 } cmp ? cmp : ">=",
+                        Value = r.TryGetProperty("value", out var v) && v.TryGetDouble(out var dv) ? dv : 0,
+                    });
+                }
+            }
+
             // Текст задания и целей лежит в локали по идентификаторам: описание
             // под «<id> description», цель — под собственным id. Без локали
             // остаются пустыми, и вкладка просто не покажет описание.

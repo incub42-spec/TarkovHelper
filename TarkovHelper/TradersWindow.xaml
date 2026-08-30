@@ -1,0 +1,45 @@
+﻿<Window x:Class="TarkovHelper.TradersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="app.ico"
+        Title="Торговцы"
+        Width="480" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="14">
+        <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,10"
+                   Text="Уровень лояльности и репутация видны в игре над списком торговцев. Часть квестов выдаётся только при определённой репутации — у Скупщика, например, при отрицательной. Пустые поля не проверяются."/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Торговец" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="1" Text="Уровень" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="2" Text="Репутация" FontWeight="SemiBold"/>
+        </Grid>
+        <ItemsControl x:Name="Rows" Margin="0,6,0,0">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" Width="70" HorizontalAlignment="Left"
+                                  ItemsSource="{Binding LevelOptions}"
+                                  SelectedItem="{Binding Level, Mode=TwoWay}"/>
+                        <TextBox Grid.Column="2" Width="80" HorizontalAlignment="Left"
+                                 Text="{Binding Reputation, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Готово" Width="100" IsDefault="True" Click="OnOkClick"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -86,6 +86,9 @@
                     <Button x:Name="BtnAllQuests" DockPanel.Dock="Right" Width="140" Margin="0,0,12,0"
                             Content="Все квесты…" Click="OnShowAllQuestsClick"
                             ToolTip="Полный список, включая закрытые и выполненные"/>
+                    <Button x:Name="BtnTraders" DockPanel.Dock="Right" Width="130" Margin="0,0,12,0"
+                            Content="Торговцы…" Click="OnTradersClick"
+                            ToolTip="Уровни лояльности и репутация: по ним отсекаются квесты, которых торговец пока не даёт"/>
                     <TextBox x:Name="TxtQuestSearch" Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
                              TextChanged="OnQuestFilterChanged"

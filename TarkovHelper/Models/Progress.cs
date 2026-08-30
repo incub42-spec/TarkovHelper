@@ -20,6 +20,10 @@ public sealed class Progress
     /// Нужен, чтобы не считать доступными квесты, до которых игрок не дорос.
     /// </summary>
     public int PlayerLevel { get; set; }
+    /// <summary>Уровень лояльности торговца (1–4). Чего нет — не проверяем.</summary>
+    public Dictionary<string, int> TraderLevels { get; set; } = new();
+    /// <summary>Репутация у торговца; бывает отрицательной (Скупщик).</summary>
+    public Dictionary<string, double> TraderRep { get; set; } = new();
     public HashSet<string> CompletedQuests { get; set; } = new();
     /// <summary>Ид станции убежища -> построенный уровень (0 = не построено).</summary>
     public Dictionary<string, int> HideoutLevels { get; set; } = new();
@@ -57,7 +61,38 @@ public sealed class Progress
     public bool IsAvailable(Quest quest) =>
         !CompletedQuests.Contains(quest.Id) &&
         quest.Requires.All(CompletedQuests.Contains) &&
-        (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel);
+        (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel) &&
+        quest.TraderConditions.All(Meets);
+
+    /// <summary>
+    /// Выполнено ли условие по торговцу. Незаполненные уровень и репутацию
+    /// считаем выполненными: лучше показать лишний квест, чем молча спрятать
+    /// доступный, пока игрок не ввёл свои цифры.
+    /// </summary>
+    public bool Meets(TraderCondition c)
+    {
+        double have;
+        if (c.Kind == "reputation")
+        {
+            if (!TraderRep.TryGetValue(c.TraderName, out var rep)) return true;
+            have = rep;
+        }
+        else
+        {
+            if (!TraderLevels.TryGetValue(c.TraderName, out var lvl) || lvl <= 0) return true;
+            have = lvl;
+        }
+
+        return c.Compare switch
+        {
+            ">=" => have >= c.Value,
+            ">" => have > c.Value,
+            "<=" => have <= c.Value,
+            "<" => have < c.Value,
+            "=" or "==" => Math.Abs(have - c.Value) < 0.001,
+            _ => true,
+        };
+    }
 
     /// <summary>
     /// Доступен ли квест этому персонажу. Квест чужой фракции игроку не выдадут,
