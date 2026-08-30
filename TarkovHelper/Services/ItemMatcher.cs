@@ -89,15 +89,31 @@ public sealed class ItemMatcher
                 {
                     var maxLen = Math.Max(line.Length, entry.Normalized.Length);
                     var dist = Levenshtein(line, entry.Normalized, (int)(maxLen * 0.35) + 1);
-                    if (dist < 0) continue; // слишком далеко
+                    if (dist < 0)
+                    {
+                        // Посимвольно слишком далеко — но так выглядит и склейка
+                        // показаний двух движков: название в ней есть целиком,
+                        // просто вперемешку с чужим прочтением тех же слов.
+                        score = TokenCoverage(line, entry.Normalized);
+                        if (score <= 0) continue;
+                    }
+                    else
+                    {
+                        score = 1.0 - (double)dist / maxLen;
 
-                    score = 1.0 - (double)dist / maxLen;
+                        // Расхождение в цифрах — признак предметов-близнецов («комната
+                        // 108»/«118», «магазин на 30»/«на 17»). Чем ближе строки, тем
+                        // подозрительнее; при большой дистанции это чаще шум OCR.
+                        if (Digits(line) != Digits(entry.Normalized))
+                            score *= dist <= 3 ? 0.75 : dist <= 8 ? 0.90 : 1.0;
 
-                    // Расхождение в цифрах — признак предметов-близнецов («комната
-                    // 108»/«118», «магазин на 30»/«на 17»). Чем ближе строки, тем
-                    // подозрительнее; при большой дистанции это чаще шум OCR.
-                    if (Digits(line) != Digits(entry.Normalized))
-                        score *= dist <= 3 ? 0.75 : dist <= 8 ? 0.90 : 1.0;
+                        // Названия часто наполовину русские, наполовину латиницей
+                        // («Активные беруши CENS "ProFlex DX5"»), и каждый движок
+                        // читает верно только свою половину. Покрытие по словам
+                        // видит такое название там, где посимвольное сравнение
+                        // даёт мало.
+                        score = Math.Max(score, TokenCoverage(line, entry.Normalized));
+                    }
                 }
 
                 // совпадение с коротким именем («Лес», «Ф-1») несёт мало информации:
@@ -121,6 +137,45 @@ public sealed class ItemMatcher
         }
 
         return best != null && best.Score >= threshold ? (best, null) : (null, best);
+    }
+
+    /// <summary>
+    /// Доля названия, покрытая словами строки (0, если покрытие неполное).
+    /// Работает там, где посимвольное сравнение бессильно: строка длиннее
+    /// названия в разы, потому что в ней склеены показания двух движков.
+    /// </summary>
+    private static double TokenCoverage(string line, string entry)
+    {
+        var want = entry.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // одно-два слова покрытием не проверяем: слишком легко совпасть случайно
+        if (want.Length < 3) return 0;
+
+        var have = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var matched = 0;
+        var matchedLen = 0;
+        foreach (var w in want)
+        {
+            if (!have.Any(h => SameWord(h, w))) continue;
+            matched++;
+            matchedLen += w.Length;
+        }
+
+        // пропущенное слово названия — почти всегда другой предмет из той же
+        // серии («PMAG 30» и «PMAG 30 W»), поэтому требуем совпадения всех
+        if (matched < want.Length || matchedLen < 10) return 0;
+        return 0.95;
+    }
+
+    /// <summary>Слова совпадают целиком либо у них общий корень («биткоинов» = «биткоин»).</summary>
+    private static bool SameWord(string a, string b)
+    {
+        if (a == b) return true;
+        // короткие слова («dx5», «l6») сравниваем только точно: иначе цепляем чужие
+        if (a.Length < 5 || b.Length < 5) return false;
+
+        var common = 0;
+        while (common < a.Length && common < b.Length && a[common] == b[common]) common++;
+        return common >= 5 && common * 10 >= Math.Min(a.Length, b.Length) * 6;
     }
 
     private static string Digits(string s) =>

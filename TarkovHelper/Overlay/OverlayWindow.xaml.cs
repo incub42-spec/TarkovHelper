@@ -404,6 +404,23 @@ public partial class OverlayWindow : Window
         bool NextRow(Services.ScreenOcr.Line top, Services.ScreenOcr.Line bottom) =>
             bottom.Y - top.Y is >= 8 and <= 55 && Math.Abs(bottom.X - top.X) <= 140;
 
+        // Одна и та же строка глазами двух движков: русский верно читает
+        // кириллицу, английский — латиницу, а названия сплошь смешанные
+        // («Активные беруши CENS "ProFlex DX5"»). По отдельности ни одно
+        // прочтение на название не похоже, вместе — содержат его целиком.
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            for (var j = i + 1; j < ordered.Count; j++)
+            {
+                if (ordered[j].Y - ordered[i].Y > 6) break;
+                if (Math.Abs(ordered[j].X - ordered[i].X) > 60) continue;
+
+                var both = ordered[i].Text + " " + ordered[j].Text;
+                weighted.Add((both, SoftWeight(Math.Min(Dist(ordered[i]), Dist(ordered[j])))));
+                debug.AppendLine($"  оба движка | {both}");
+            }
+        }
+
         for (var i = 0; i < ordered.Count; i++)
         {
             for (var j = i + 1; j < ordered.Count; j++)

@@ -75,6 +75,17 @@ foreach (var arg in args)
     // склейка строк, лежащих друг под другом — точно как в оверлее,
     // включая тройную склейку и вес по ближайшей из строк
     var ordered = lines.OrderBy(l => l.Y).ThenBy(l => l.X).ToList();
+
+    // одна строка глазами двух движков — как в оверлее
+    for (var i = 0; i < ordered.Count; i++)
+    for (var j = i + 1; j < ordered.Count; j++)
+    {
+        if (ordered[j].Y - ordered[i].Y > 6) break;
+        if (Math.Abs(ordered[j].X - ordered[i].X) > 60) continue;
+        weighted.Add((ordered[i].Text + " " + ordered[j].Text,
+            SoftWeight(Math.Min(Dist(ordered[i]), Dist(ordered[j])))));
+    }
+
     bool NextRow((string Text, double X, double Y) top, (string Text, double X, double Y) bottom) =>
         bottom.Y - top.Y is >= 8 and <= 55 && Math.Abs(bottom.X - top.X) <= 140;
 
