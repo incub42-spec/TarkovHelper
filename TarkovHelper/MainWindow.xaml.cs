@@ -1254,35 +1254,36 @@ public partial class MainWindow : Window
 
     // ---------- строки таблиц ----------
 
-    /// <summary>Строка схрона: сколько нужно, сколько есть, сколько осталось.</summary>
-    internal sealed class StashRow
+    /// <summary>
+    /// Строка схрона: предмет и сколько его у игрока. Больше ничего — потребности
+    /// и остатки считаются из этого числа на других вкладках, а здесь опись.
+    /// </summary>
+    internal sealed class StashRow : INotifyPropertyChanged
     {
-        private readonly ItemNeeds _needs;
-
-        internal StashRow(ItemNeeds needs)
+        internal StashRow(List<Item> variants)
         {
-            _needs = needs;
-            ItemId = needs.Item.Id;
-            Name = needs.Item.Name;
-            Need = needs.QuestCount + needs.HideoutCount;
-            Options = needs.Options;
-            NeedText = Options > 1 ? $"{Need} (любой из {Options})" : Need.ToString();
-            Sources = string.Join(";  ", needs.Needs
-                .Where(x => x.Kind != NeedKind.Barter)
-                .Select(x => $"{x.Source} ×{x.Count}"));
+            // варианты одного имени неразличимы на глаз: жетоны разных уровней
+            // — девять записей базы, а в описи это одна строка
+            Ids = variants.Select(i => i.Id).ToList();
+            Name = variants[0].Name + (variants[0].IsQuestItem ? " [квестовый]" : "");
+            if (Ids.Count > 1) Name += $"  · {Ids.Count} вар.";
         }
 
-        public string ItemId { get; }
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public List<string> Ids { get; }
         public string Name { get; }
-        public int Need { get; }
-        public string Sources { get; }
 
-        public int Options { get; }
-        public string NeedText { get; }
+        public int Have => Ids.Sum(App.Services.Progress.InStash);
 
-        public int Have => App.Services.Progress.InStash(ItemId);
-        public int Left => LeftToFind(_needs);
-        public Brush LeftBrush => Left == 0 ? CheckedBrush : TitleTextBrush;
+        /// <summary>Кладёт всё количество в первую запись: варианты неразличимы.</summary>
+        public void SetHave(int count)
+        {
+            var progress = App.Services.Progress;
+            foreach (var id in Ids.Skip(1)) progress.SetStash(id, 0);
+            progress.SetStash(Ids[0], Math.Max(0, count));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Have)));
+        }
     }
 
     /// <summary>
@@ -1322,27 +1323,29 @@ public partial class MainWindow : Window
 
     private void RebuildStashRows()
     {
-        var index = App.Services.Index;
-        _stashRows = index == null
+        var data = App.Services.Data;
+        _stashRows = data == null
             ? new List<StashRow>()
-            : index.ByItemId.Values
-                .Where(n => n.NeededForQuestOrHideout)
-                .OrderBy(n => n.Item.Name, StringComparer.CurrentCulture)
-                .Select(n => new StashRow(n))
+            : data.Items
+                .GroupBy(i => i.Name + (i.IsQuestItem ? " [квестовый]" : ""),
+                         StringComparer.CurrentCulture)
+                .OrderBy(g => g.Key, StringComparer.CurrentCulture)
+                .Select(g => new StashRow(g.ToList()))
                 .ToList();
         ApplyStashFilter();
     }
 
+    /// <summary>
+    /// Пустой поиск показывает только то, что лежит: опись, а не каталог из
+    /// трёх тысяч строк. Как только начали вводить название — ищем по всей базе,
+    /// иначе новый предмет не добавить.
+    /// </summary>
     private void ApplyStashFilter()
     {
-        IEnumerable<StashRow> rows = _stashRows;
-
-        if (ChkStashOnlyLeft.IsChecked == true)
-            rows = rows.Where(r => r.Left > 0);
-
         var q = TxtStashSearch.Text.Trim();
-        if (q.Length > 0)
-            rows = rows.Where(r => r.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase));
+        var rows = q.Length == 0
+            ? _stashRows.Where(r => r.Have > 0)
+            : _stashRows.Where(r => r.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase));
 
         StashList.ItemsSource = rows.ToList();
     }
@@ -1358,30 +1361,48 @@ public partial class MainWindow : Window
 
     private void ChangeStash(object sender, int delta)
     {
-        if (sender is not FrameworkElement { Tag: string itemId }) return;
-        var progress = App.Services.Progress;
-        progress.SetStash(itemId, progress.InStash(itemId) + delta);
-        App.Services.SaveProgress();
+        if (sender is not FrameworkElement { Tag: StashRow row }) return;
+        row.SetHave(row.Have + delta);
+        StashChanged();
     }
 
     /// <summary>Число вводят руками, когда в схроне сразу десяток штук.</summary>
     private void OnStashCountEdited(object sender, RoutedEventArgs e)
     {
-        if (sender is not TextBox { Tag: string itemId } box) return;
+        if (sender is not TextBox { Tag: StashRow row } box) return;
         if (!int.TryParse(box.Text.Trim(), out var count)) count = 0;
+        if (row.Have == count) return;
 
-        var progress = App.Services.Progress;
-        if (progress.InStash(itemId) == count) return;
-
-        progress.SetStash(itemId, count);
-        App.Services.SaveProgress();
+        row.SetHave(count);
+        StashChanged();
     }
 
-    private void OnStashCountKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void OnStashCountKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != System.Windows.Input.Key.Enter) return;
+        if (e.Key != Key.Enter) return;
         OnStashCountEdited(sender, e);
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Остатки в «Что собирать» посчитаны при построении списка. Пересобирать
+    /// его на каждое нажатие плюса ни к чему — сделаем это при возврате на
+    /// вкладку.
+    /// </summary>
+    private bool _itemsStale;
+
+    private void StashChanged()
+    {
+        App.Services.SaveProgress();
+        _itemsStale = true;
+    }
+
+    private void OnTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || !ReferenceEquals(e.OriginalSource, Tabs)) return;
+        if (!_itemsStale || !ReferenceEquals(Tabs.SelectedItem, TabItems)) return;
+        _itemsStale = false;
+        RebuildItemRows();
     }
 
     private sealed class ItemRow
