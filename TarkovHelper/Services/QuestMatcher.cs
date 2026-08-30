@@ -232,7 +232,7 @@ internal static partial class QuestMatcher
 
                 // Номер части — самое надёжное в строке, когда он прочитан:
                 // названия внутри цепочки отличаются только им.
-                var questPart = PartNumber(new[] { progress.NameOf(q), q.NameAlt ?? "" });
+                var questPart = PartNumber(Names(q, progress));
                 if (rowPart != null && questPart != null && rowPart != questPart) continue;
 
                 var score = 0.0;
@@ -396,17 +396,23 @@ internal static partial class QuestMatcher
     /// </summary>
     private static double Score(string text, Quest q, Progress progress, bool stripPart = false)
     {
-        var name = progress.NameOf(q);
-        var alt = q.NameAlt;
-        if (stripPart)
-        {
-            name = WithoutPart(name);
-            alt = alt == null ? null : WithoutPart(alt);
-        }
-
-        var score = ItemMatcher.Similarity(text, name);
-        if (alt != null)
-            score = Math.Max(score, ItemMatcher.Similarity(text, alt));
+        var score = 0.0;
+        foreach (var name in Names(q, progress))
+            score = Math.Max(score, ItemMatcher.Similarity(text, stripPart ? WithoutPart(name) : name));
         return score;
+    }
+
+    /// <summary>
+    /// Все имена, под которыми квест может быть на экране: показываемое,
+    /// прежнее из локали и то, что лежит в базе. Последнее обязательно:
+    /// показываемое имя могло быть укорочено по ошибке, и без сравнения с
+    /// базой строка «Вперед, к вершинам! Часть 2» не узнаётся, а значит и
+    /// ошибку не исправить — она сама себя защищает.
+    /// </summary>
+    private static IEnumerable<string> Names(Quest q, Progress progress)
+    {
+        yield return progress.NameOf(q);
+        if (q.NameAlt != null) yield return q.NameAlt;
+        yield return q.Name;
     }
 }
