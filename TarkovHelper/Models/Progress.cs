@@ -274,8 +274,16 @@ public sealed class AppSettings
 {
     /// <summary>Папка с игрой (для чтения логов). Например C:\Battlestate Games\EFT.</summary>
     public string? GamePath { get; set; }
-    /// <summary>Показывать в списке предметы, нужные только для обменов.</summary>
+    /// <summary>Показывать предметы, нужные для квестов.</summary>
+    public bool ShowQuestItems { get; set; } = true;
+    /// <summary>Показывать предметы, нужные для убежища.</summary>
+    public bool ShowHideoutItems { get; set; } = true;
+    /// <summary>Показывать предметы, нужные для обменов.</summary>
     public bool ShowBarterItems { get; set; }
+    /// <summary>Из отмеченных источников оставлять только доступное сейчас.</summary>
+    public bool ShowOnlyNowItems { get; set; } = true;
+    /// <summary>Прятать строки, где нужное количество уже лежит в схроне.</summary>
+    public bool HideEnoughItems { get; set; }
     /// <summary>Подсвечивать область скриншота при сканировании (отладка OCR).</summary>
     public bool ShowScanRegion { get; set; }
     /// <summary>Клавиша сканирования предмета (виртуальный код Windows). F9 по умолчанию.</summary>

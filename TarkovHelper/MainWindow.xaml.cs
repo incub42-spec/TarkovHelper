@@ -29,7 +29,11 @@ public partial class MainWindow : Window
         var s = App.Services;
 
         RefreshProfiles();
+        ChkQuestItems.IsChecked = s.Settings.ShowQuestItems;
+        ChkHideoutItems.IsChecked = s.Settings.ShowHideoutItems;
         ChkBarters.IsChecked = s.Settings.ShowBarterItems;
+        ChkOnlyNow.IsChecked = s.Settings.ShowOnlyNowItems;
+        ChkHideEnough.IsChecked = s.Settings.HideEnoughItems;
         ChkGroupQuests.IsChecked = s.Settings.GroupQuests;
         ChkYandexOcr.IsChecked = s.Settings.UseYandexOcr;
         if (TxtYandexKey.Password.Length == 0 && s.Settings.YandexOcrKey is { } yk)
@@ -112,8 +116,9 @@ public partial class MainWindow : Window
             return;
         }
 
+        // строим всё, что вообще кому-то нужно: какие источники показывать —
+        // решают галочки, и переключаются они без пересборки списка
         _allItems = index.ByItemId.Values
-            .Where(n => n.NeededForQuestOrHideout || App.Services.Settings.ShowBarterItems)
             .Select(n => new ItemRow(n))
             .OrderByDescending(r => r.HasPrimary)
             .ThenBy(r => r.Name)
@@ -125,11 +130,20 @@ public partial class MainWindow : Window
     {
         IEnumerable<ItemRow> rows = _allItems;
 
-        // «Позже» — это предметы для квестов, которых торговец ещё не выдал, и
-        // для дальних уровней убежища. В рейде они только мешают: собирать
-        // надо то, что закрывает сегодняшние задачи.
-        if (ChkOnlyNow.IsChecked == true)
-            rows = rows.Where(r => r.NeededNow);
+        var quests = ChkQuestItems.IsChecked == true;
+        var hideout = ChkHideoutItems.IsChecked == true;
+        var barters = ChkBarters.IsChecked == true;
+
+        // «Позже» — это квесты, которых торговец ещё не выдал, дальние уровни
+        // станций и обмены выше достигнутой лояльности. В рейде они только
+        // мешают: собирать надо то, что закрывает сегодняшние задачи.
+        // Уточнение действует внутри отмеченных источников, поэтому строка
+        // остаётся, если хоть один из них её просит.
+        var now = ChkOnlyNow.IsChecked == true;
+        rows = rows.Where(r =>
+            (quests && (now ? r.QuestNow : r.HasQuest)) ||
+            (hideout && (now ? r.HideoutNow : r.HasHideout)) ||
+            (barters && (now ? r.BarterNow : r.HasBarter)));
 
         if (ChkHideEnough.IsChecked == true)
             rows = rows.Where(r => !r.Enough);
@@ -146,14 +160,15 @@ public partial class MainWindow : Window
 
     private void OnItemScopeChanged(object sender, RoutedEventArgs e)
     {
-        if (IsLoaded) ApplyItemFilter();
-    }
-
-    private void OnBarterFilterChanged(object sender, RoutedEventArgs e)
-    {
         if (!IsLoaded) return;
-        App.Services.Settings.ShowBarterItems = ChkBarters.IsChecked == true;
+        var settings = App.Services.Settings;
+        settings.ShowQuestItems = ChkQuestItems.IsChecked == true;
+        settings.ShowHideoutItems = ChkHideoutItems.IsChecked == true;
+        settings.ShowBarterItems = ChkBarters.IsChecked == true;
+        settings.ShowOnlyNowItems = ChkOnlyNow.IsChecked == true;
+        settings.HideEnoughItems = ChkHideEnough.IsChecked == true;
         App.Services.SaveProgress();
+        ApplyItemFilter();
     }
 
     private void OnScanRegionChanged(object sender, RoutedEventArgs e)
@@ -1361,9 +1376,14 @@ public partial class MainWindow : Window
             TraderPriceText = n.Item.TraderSellPrice is > 0
                 ? $"{n.Item.TraderSellPrice:N0} ({n.Item.TraderSellName})"
                 : "";
-            Sources = string.Join(";  ", n.Needs
-                .Where(x => x.Kind != NeedKind.Barter)
-                .Select(x => $"{x.Source} ×{x.Count}"));
+            // Обмены в источники не пишем: их десятки на предмет, столбец
+            // станет нечитаемым. Но если других причин нет, строка осталась бы
+            // пустой — тогда показываем несколько обменов.
+            Sources = n.NeededForQuestOrHideout
+                ? string.Join(";  ", n.Needs
+                    .Where(x => x.Kind != NeedKind.Barter)
+                    .Select(x => $"{x.Source} ×{x.Count}"))
+                : ShortList(n.Needs.Select(x => x.Source).ToList(), 3);
 
             QuestCount = n.QuestNowCount > 0 ? n.QuestNowCount : n.QuestCount;
             FirCount = n.QuestFirCount;
@@ -1376,11 +1396,14 @@ public partial class MainWindow : Window
             // список показывает полную потребность и заставляет держать
             // накопленное в голове.
             ItemId = n.Item.Id;
-            // Нужно для того, что доступно сейчас: выданный квест или ближайший
-            // уровень станции. Предметы, попавшие в список только ради обменов,
-            // этот фильтр не касается — их показывает своя галочка.
-            NeededNow = !n.NeededForQuestOrHideout ||
-                        n.Needs.Any(x => x.Kind != NeedKind.Barter && x.Available);
+            // Зачем предмет нужен и что из этого доступно уже сейчас: по этим
+            // признакам список фильтруют галочки источников.
+            HasQuest = n.HasQuest;
+            HasHideout = n.HasHideout;
+            HasBarter = n.HasBarter;
+            QuestNow = n.QuestNowCount > 0;
+            HideoutNow = n.HideoutNowCount > 0;
+            BarterNow = n.BarterNowUses > 0;
             Have = App.Services.Progress.InStash(n.Item.Id);
             var need = n.QuestCount + n.HideoutCount;
             Left = LeftToFind(n);
@@ -1393,8 +1416,19 @@ public partial class MainWindow : Window
                 QuestText += $" из {n.Options}";
         }
 
+        /// <summary>Первые несколько подписей и «и ещё N» — столбец узкий.</summary>
+        private static string ShortList(List<string> all, int limit) =>
+            all.Count <= limit
+                ? string.Join(";  ", all)
+                : string.Join(";  ", all.Take(limit)) + $";  и ещё {all.Count - limit}";
+
         public string ItemId { get; }
-        public bool NeededNow { get; }
+        public bool HasQuest { get; }
+        public bool HasHideout { get; }
+        public bool HasBarter { get; }
+        public bool QuestNow { get; }
+        public bool HideoutNow { get; }
+        public bool BarterNow { get; }
         public int Have { get; }
         public int Left { get; }
         public string HaveText { get; }

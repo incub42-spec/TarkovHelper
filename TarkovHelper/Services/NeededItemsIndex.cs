@@ -105,6 +105,12 @@ public sealed class NeededItemsIndex
         // Обмены: информационно (обмены повторяемы, в "надо собрать" не суммируем)
         foreach (var barter in data.Barters)
         {
+            // Обмен на четвёртом уровне лояльности недоступен тому, у кого
+            // второй: предметы для него нужны не сегодня. Уровень торговца
+            // игрок задаёт в профиле; пока не задан — считаем доступным.
+            var known = progress.TraderLevels.TryGetValue(barter.TraderName, out var lvl) && lvl > 0;
+            var available = !known || lvl >= barter.Level;
+
             foreach (var req in barter.Required)
             {
                 Add(req.ItemId, new Need
@@ -112,6 +118,7 @@ public sealed class NeededItemsIndex
                     Kind = NeedKind.Barter,
                     Source = $"{barter.TraderName} ур.{barter.Level} → {barter.Reward}",
                     Count = req.Count,
+                    Available = available,
                 });
             }
         }

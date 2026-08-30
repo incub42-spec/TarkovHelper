@@ -63,18 +63,32 @@
         <TabItem Header="Что собирать">
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <CheckBox x:Name="ChkOnlyNow" DockPanel.Dock="Right" VerticalAlignment="Center"
-                              Margin="12,0,0,0" IsChecked="True"
-                              Content="Только для активных задач"
-                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
-                              ToolTip="Прячет предметы для невыданных квестов и дальних уровней убежища"/>
+                    <!-- три источника потребности и два уточнения к ним:
+                         снятые галочки убирают строки целиком, поэтому если
+                         снять все три — список пуст, и это честно -->
                     <CheckBox x:Name="ChkHideEnough" DockPanel.Dock="Right" VerticalAlignment="Center"
                               Margin="12,0,0,0" Content="Скрыть собранное"
                               Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
                               ToolTip="Убрать строки, где нужное количество уже лежит в схроне"/>
+                    <CheckBox x:Name="ChkOnlyNow" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" IsChecked="True"
+                              Content="Только доступное сейчас"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Из отмеченных источников оставить выданные квесты, ближайшие уровни станций и обмены по достигнутой лояльности"/>
                     <CheckBox x:Name="ChkBarters" DockPanel.Dock="Right" VerticalAlignment="Center"
-                              Content="Показывать предметы только для обменов"
-                              Checked="OnBarterFilterChanged" Unchecked="OnBarterFilterChanged"/>
+                              Margin="12,0,0,0" Content="Обмены"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Предметы, которые торговцы принимают в обмен"/>
+                    <CheckBox x:Name="ChkHideoutItems" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" IsChecked="True" Content="Убежище"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Предметы для постройки станций"/>
+                    <CheckBox x:Name="ChkQuestItems" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" IsChecked="True" Content="Квесты"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Предметы для сдачи по заданиям"/>
+                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center"
+                               Margin="12,0,0,0" Text="Нужны для:" Opacity="0.7"/>
                     <TextBox x:Name="TxtItemSearch" Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
                              TextChanged="OnItemSearchChanged"
