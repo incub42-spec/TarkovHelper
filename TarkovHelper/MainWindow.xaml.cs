@@ -117,16 +117,20 @@ public partial class MainWindow : Window
             return;
         }
 
-        // строим всё, что вообще кому-то нужно: какие источники показывать —
-        // решают галочки, и переключаются они без пересборки списка.
+        // Строим всё, что вообще кому-то нужно; какие источники показывать —
+        // решают галочки. «Только нужное сейчас» — не просто отбор строк:
+        // количества, остаток и подписи в такой строке тоже должны считаться
+        // по сегодняшним задачам, иначе рядом с «нужно сейчас» стоит цифра
+        // «на будущее». Поэтому список пересобирается вместе с галочкой.
         //
         // Варианты одного предмета в базе — разные записи: армейских жетонов
         // девять штук с одним и тем же русским именем. В списке сбора они
         // неразличимы и только мешают, поэтому строка одна на имя.
+        var onlyNow = ChkOnlyNow.IsChecked == true;
         _allItems = index.ByItemId.Values
             .GroupBy(n => n.Item.Name + (n.Item.IsQuestItem ? " [квестовый]" : ""),
                      StringComparer.CurrentCulture)
-            .Select(g => new ItemRow(g.ToList()))
+            .Select(g => new ItemRow(g.ToList(), onlyNow))
             .OrderByDescending(r => r.HasPrimary)
             .ThenBy(r => r.Name)
             .ToList();
@@ -141,16 +145,10 @@ public partial class MainWindow : Window
         var hideout = ChkHideoutItems.IsChecked == true;
         var barters = ChkBarters.IsChecked == true;
 
-        // «Позже» — это квесты, которых торговец ещё не выдал, дальние уровни
-        // станций и обмены выше достигнутой лояльности. В рейде они только
-        // мешают: собирать надо то, что закрывает сегодняшние задачи.
-        // Уточнение действует внутри отмеченных источников, поэтому строка
-        // остаётся, если хоть один из них её просит.
-        var now = ChkOnlyNow.IsChecked == true;
+        // «Позже» из строк уже вычтено при сборке списка, здесь остаётся отбор
+        // по источникам: строка нужна, если её просит хоть один отмеченный.
         rows = rows.Where(r =>
-            (quests && (now ? r.QuestNow : r.HasQuest)) ||
-            (hideout && (now ? r.HideoutNow : r.HasHideout)) ||
-            (barters && (now ? r.BarterNow : r.HasBarter)));
+            (quests && r.HasQuest) || (hideout && r.HasHideout) || (barters && r.HasBarter));
 
         if (ChkHideEnough.IsChecked == true)
             rows = rows.Where(r => !r.Enough);
@@ -194,7 +192,9 @@ public partial class MainWindow : Window
         settings.ShowOnlyNowItems = ChkOnlyNow.IsChecked == true;
         settings.HideEnoughItems = ChkHideEnough.IsChecked == true;
         App.Services.SaveProgress();
-        ApplyItemFilter();
+
+        if (ReferenceEquals(sender, ChkOnlyNow)) RebuildItemRows();
+        else ApplyItemFilter();
     }
 
     private void OnScanRegionChanged(object sender, RoutedEventArgs e)
@@ -1415,11 +1415,15 @@ public partial class MainWindow : Window
 
     private sealed class ItemRow
     {
-        public ItemRow(List<ItemNeeds> variants)
+        public ItemRow(List<ItemNeeds> variants, bool onlyNow)
         {
             Variants = variants;
-            var n = Merge(variants);
-            Needs = n;
+            Needs = Merge(variants);
+
+            // Окно подробностей показывает все причины, включая «позже»: там
+            // спрашивают «зачем он вообще нужен». Сама же строка считается по
+            // тому, что просят сегодня, если так велит галочка.
+            var n = onlyNow ? Available(Needs) : Needs;
 
             Name = n.Item.Name + (n.Item.IsQuestItem ? " [квестовый]" : "");
             if (variants.Count > 1) Name += $"  · {variants.Count} вар.";
@@ -1474,9 +1478,6 @@ public partial class MainWindow : Window
             HasQuest = n.HasQuest;
             HasHideout = n.HasHideout;
             HasBarter = n.HasBarter;
-            QuestNow = n.QuestNowCount > 0;
-            HideoutNow = n.HideoutNowCount > 0;
-            BarterNow = n.BarterNowUses > 0;
             ItemIds = variants.Select(v => v.Item.Id).ToList();
             Have = ItemIds.Sum(App.Services.Progress.InStash);
             var need = n.QuestCount + n.HideoutCount;
@@ -1519,6 +1520,14 @@ public partial class MainWindow : Window
             return merged;
         }
 
+        /// <summary>Только то, что можно закрыть сейчас: выданные квесты,
+        /// ближайшие уровни станций, обмены по достигнутой лояльности.</summary>
+        private static ItemNeeds Available(ItemNeeds all) => new()
+        {
+            Item = all.Item,
+            Needs = all.Needs.Where(x => x.Available).ToList(),
+        };
+
         private static int FleaPrice(ItemNeeds n) =>
             n.Item.LastLowPrice is > 0 ? n.Item.LastLowPrice.Value
             : n.Item.Avg24hPrice is > 0 ? n.Item.Avg24hPrice.Value : 0;
@@ -1537,9 +1546,6 @@ public partial class MainWindow : Window
         public bool HasQuest { get; }
         public bool HasHideout { get; }
         public bool HasBarter { get; }
-        public bool QuestNow { get; }
-        public bool HideoutNow { get; }
-        public bool BarterNow { get; }
         public int Have { get; }
         public int Left { get; }
         public string HaveText { get; }
