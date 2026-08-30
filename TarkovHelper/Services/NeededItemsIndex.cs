@@ -82,9 +82,12 @@ public sealed class NeededItemsIndex
         }
 
         // Убежище: уровни выше построенного. У станций своя последовательность —
-        // уровень строится, только когда готов предыдущий и построены станции из
-        // его условий. Что до этого ещё не дошло, помечаем как «позже»: предмет
-        // нужен, но не в этом рейде.
+        // «Сейчас» — это следующий уровень станции, каким бы он ни был по счёту.
+        // Условия по другим постройкам сюда не входят: «Безопасность ур. 3»
+        // ждёт «Освещение ур. 3», но дисплеи для неё нужны ровно так же, и
+        // прятать их в «позже» неверно — чего именно не хватает, видно во
+        // вкладке убежища отдельной строкой. «Позже» остаётся за уровнями,
+        // до которых очередь не дошла: их материалы нужны не в этом рейде.
         int Built(string stationId) =>
             progress.HideoutLevels.TryGetValue(stationId, out var l) ? l : 0;
 
@@ -95,8 +98,7 @@ public sealed class NeededItemsIndex
             {
                 if (level.Level <= built) continue;
 
-                var available = level.Level == built + 1 &&
-                                level.StationRequirements.All(r => Built(r.StationId) >= r.Level);
+                var available = level.Level == built + 1;
 
                 foreach (var req in level.Requirements)
                 {
