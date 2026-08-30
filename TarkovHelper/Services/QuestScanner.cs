@@ -35,6 +35,13 @@ internal static partial class QuestScanner
     [GeneratedRegex("(?i)провал|fail")]
     private static partial Regex FailedRegex();
 
+    /// <summary>Хвост «. Часть 2» в конце названия.</summary>
+    [GeneratedRegex(@"(?i)[\s.,-]*(часть|part)\s*\d+\s*$")]
+    private static partial Regex PartSuffixRegex();
+
+    /// <summary>Название без номера части: игра показывает его короче базы.</summary>
+    private static string WithoutPart(string name) => PartSuffixRegex().Replace(name, "").Trim();
+
     /// <summary>
     /// Читает левую колонку со списком заданий. Игра показывает завершённые и
     /// активные вперемешку, а статус пишет в той же строке справа от названия —
@@ -86,8 +93,43 @@ internal static partial class QuestScanner
             foreach (var q in data.Quests)
             {
                 if (!progress.Fits(q.Faction)) continue;
-                var score = ItemMatcher.Similarity(text, progress.NameOf(q));
+                var score = Score(text, q, progress);
                 if (score > bestScore) { bestScore = score; best = q; }
+            }
+
+            // Игра порой показывает название без номера части: «Операция
+            // "Водолей"» вместо «Операция "Водолей". Часть 1». Посимвольно это
+            // всего 0.67, поэтому сравниваем ещё и без хвоста с номером, а из
+            // частей берём первую несданную — их проходят по порядку.
+            if (bestScore < 0.78)
+            {
+                var stripped = WithoutPart(text);
+                Quest? byPart = null;
+                var partScore = 0.0;
+                foreach (var q in data.Quests)
+                {
+                    if (!progress.Fits(q.Faction)) continue;
+                    var score = Math.Max(
+                        ItemMatcher.Similarity(stripped, WithoutPart(progress.NameOf(q))),
+                        q.NameAlt == null ? 0 : ItemMatcher.Similarity(stripped, WithoutPart(q.NameAlt)));
+                    if (score <= partScore) continue;
+                    if (progress.CompletedQuests.Contains(q.Id) && byPart != null) continue;
+                    partScore = score;
+                    byPart = q;
+                }
+
+                if (byPart != null && partScore >= 0.85)
+                {
+                    var family = data.Quests
+                        .Where(q => progress.Fits(q.Faction) &&
+                                    (ItemMatcher.Similarity(stripped, WithoutPart(progress.NameOf(q))) >= 0.85 ||
+                                     (q.NameAlt != null &&
+                                      ItemMatcher.Similarity(stripped, WithoutPart(q.NameAlt)) >= 0.85)))
+                        .OrderBy(q => progress.NameOf(q), StringComparer.CurrentCulture)
+                        .ToList();
+                    best = family.FirstOrDefault(q => !progress.CompletedQuests.Contains(q.Id)) ?? family[0];
+                    bestScore = partScore;
+                }
             }
 
             // статус ищем в той же строке правее названия
@@ -115,6 +157,19 @@ internal static partial class QuestScanner
                     $"без статуса={unknown.Count}\n" + debug);
 
         return new Result(completed, active, failed, unknown, new Region(x, y, w, h), lines.Count);
+    }
+
+    /// <summary>
+    /// Похожесть строки на название квеста. Сравниваем и со свежим именем, и с
+    /// прежним из локали: у игрока может стоять клиент, где квест ещё не
+    /// переименован, а лишний вариант сравнения ничего не портит.
+    /// </summary>
+    private static double Score(string text, Quest q, Progress progress)
+    {
+        var score = ItemMatcher.Similarity(text, progress.NameOf(q));
+        if (q.NameAlt != null)
+            score = Math.Max(score, ItemMatcher.Similarity(text, q.NameAlt));
+        return score;
     }
 
     private static void AppendDebug(string text)

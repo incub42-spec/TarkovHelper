@@ -12,7 +12,7 @@ namespace TarkovHelper.Services;
 ///  - TarkovTracker tarkovdata — английские имена предметов;
 ///  - TarkovLab TarkovData — актуальные английские названия квестов.
 /// </summary>
-public static class FallbackDataClient
+public static partial class FallbackDataClient
 {
     /// <summary>
     /// Режим игры: наборы квестов и цены у PvE и PvP различаются
@@ -503,6 +503,11 @@ public static class FallbackDataClient
         }
     }
 
+    /// <summary>Уточнение в скобках у заголовка вики: «Резерв (квест)».</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"\s*\((квест|задание|task|quest)\)\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex WikiSuffixRegex();
+
     private static string Humanize(string normalized) =>
         normalized.Length == 0
             ? "Станция"
@@ -533,17 +538,32 @@ public static class FallbackDataClient
         var map = await WikiTitles.ResolveAsync(
             quests.Select(q => q.WikiTitle!).Concat(items.Select(i => i.WikiTitle!)), ct);
 
-        // Часть квестов так и осталась английской: у их английских статей нет
-        // ссылки на русские, хотя обратная ссылка есть. Добираем обходом с
-        // русской стороны — по категории «Квесты».
-        if (quests.Any(q => !map.ContainsKey(q.WikiTitle!)))
-        {
-            status?.Report("Резервный источник: русские названия квестов с русской вики…");
-            map = await WikiTitles.ResolveQuestsFromRuAsync(map, ct);
-        }
+        // Обход с русской стороны нужен всегда, а не только для безымянных:
+        // BSG переименовывает квесты, и локаль отстаёт на месяцы. Вики ведут
+        // игроки, там названия совпадают с текущим клиентом.
+        status?.Report("Резервный источник: русские названия квестов с русской вики…");
+        map = await WikiTitles.ResolveQuestsFromRuAsync(map, ct);
 
         foreach (var q in quests)
             if (map.TryGetValue(q.WikiTitle!, out var ru)) q.Name = ru;
+
+        // Свежее название с вики важнее названия из локали: BSG переименовывает
+        // квесты, а локаль отстаёт на месяцы. Но берём его только при настоящем
+        // переименовании: у вики свой стиль оформления («Слава КПСС - Часть 1»
+        // вместо «. Часть 1», «Резерв (квест)»), и по нему список разошёлся бы
+        // с игрой в другую сторону.
+        foreach (var q in data.Quests)
+        {
+            if (string.IsNullOrEmpty(q.WikiTitle)) continue;
+            if (!map.TryGetValue(q.WikiTitle!, out var ru)) continue;
+
+            var clean = WikiSuffixRegex().Replace(ru, "").Trim();
+            if (clean.Length == 0 || clean == q.Name) continue;
+            if (ItemMatcher.Similarity(clean, q.Name) >= 0.9) continue; // отличается лишь оформлением
+
+            q.NameAlt = q.Name;
+            q.Name = clean;
+        }
 
         foreach (var i in items)
         {

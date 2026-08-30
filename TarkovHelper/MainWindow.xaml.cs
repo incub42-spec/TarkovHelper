@@ -531,8 +531,19 @@ public partial class MainWindow : Window
             rows = rows.Where(r =>
                 r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.Trader.Contains(q, StringComparison.OrdinalIgnoreCase));
-        QuestsList.ItemsSource = rows.ToList();
+        var shown = rows.ToList();
+        QuestsList.ItemsSource = shown;
         ApplySort(QuestsList, _questsSort); // список пересобран — сортировку вернуть
+
+        // Список длиннее, чем в игре, ровно на те квесты, которые игрок уже
+        // сдал, а программа об этом не знает: игра нигде не хранит историю на
+        // диске, она попадает сюда только сканированием. Показываем размер
+        // этого пробела, иначе расхождение выглядит как ошибка фильтра.
+        var known = App.Services.Progress.CompletedQuests.Count;
+        TxtQuestKnowledge.Text =
+            $"Показано: {shown.Count}. Выполненными известны {known} из {_allQuests.Count} — " +
+            "остальные сданные программа считает доступными, пока их не отсканируешь " +
+            $"({Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} на списке «Завершенные» у торговца).";
     }
 
     /// <summary>Откат массовой отметки: ошибиться сканированием списка легко.</summary>

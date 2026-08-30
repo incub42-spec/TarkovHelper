@@ -138,6 +138,68 @@ public sealed class AppServices
     }
 
     /// <summary>
+    /// Квест, который игра показывает активным, точно не сдан. Такие отметки
+    /// остаются от неудачного скана — когда список активных прочитали вместо
+    /// списка завершённых, — и найти их среди сотен выполненных почти нельзя.
+    /// Поэтому снимаем сразу, как только игра показала обратное.
+    /// </summary>
+    public List<Quest> UnmarkQuestsCompleted(IEnumerable<Quest> quests)
+    {
+        var removed = new List<Quest>();
+        foreach (var q in quests)
+        {
+            var changed = Progress.CompletedQuests.Remove(q.Id);
+            changed |= Progress.FailedQuests.Remove(q.Id); // перезапустили — снова в работе
+            if (!changed) continue;
+            Progress.QuestCheckedUtc.Remove(q.Id);
+            removed.Add(q);
+        }
+
+        if (removed.Count > 0)
+        {
+            var ids = removed.Select(q => q.Id).ToHashSet();
+            LastQuestScan = LastQuestScan.Where(q => !ids.Contains(q.Id)).ToList();
+            SaveProgress();
+        }
+        return removed;
+    }
+
+    /// <summary>
+    /// Достраивает историю по цепочке: раз торговец выдал квест, все квесты,
+    /// которые он требует, уже сданы. Список завершённых длинный и читается
+    /// с прокруткой, а вот те несколько, что видны сейчас, дают эту часть
+    /// истории бесплатно и без ошибок распознавания.
+    /// </summary>
+    public List<Quest> InferCompletedFromChain(IEnumerable<Quest> visible)
+    {
+        if (Data == null) return new List<Quest>();
+        var byId = Data.Quests.ToDictionary(q => q.Id);
+        var added = new List<Quest>();
+
+        void Walk(Quest quest)
+        {
+            foreach (var id in quest.Requires)
+            {
+                if (!byId.TryGetValue(id, out var prev)) continue;
+                if (!Progress.CompletedQuests.Add(id)) continue;
+                Progress.QuestCheckedUtc[id] = DateTime.UtcNow;
+                added.Add(prev);
+                Walk(prev);
+            }
+        }
+
+        foreach (var quest in visible)
+            Walk(quest);
+
+        if (added.Count > 0)
+        {
+            LastQuestScan = LastQuestScan.Concat(added).ToList(); // откатывается вместе со сканом
+            SaveProgress();
+        }
+        return added;
+    }
+
+    /// <summary>
     /// Отмечает квесты проваленными. У большинства провал окончательный, так
     /// что их лут больше не нужен; перезапускаемые остаются в доступных.
     /// </summary>

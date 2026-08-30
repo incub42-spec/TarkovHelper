@@ -288,6 +288,12 @@ public partial class OverlayWindow : Window
 
             var added = App.Services.MarkQuestsCompleted(result.Completed);
             var failed = App.Services.MarkQuestsFailed(result.Failed);
+            // всё, что торговец сейчас показывает, он уже выдал: предыдущие
+            // квесты цепочки сданы, даже если мы их не сканировали
+            var implied = App.Services.InferCompletedFromChain(
+                result.Completed.Concat(result.Active).Concat(result.Failed));
+            // а активный квест не сдан — снимаем отметку, если она была ошибочной
+            var cleared = App.Services.UnmarkQuestsCompleted(result.Active);
             var lines = new List<(string, System.Windows.Media.Brush)>
             {
                 added.Count > 0
@@ -302,12 +308,20 @@ public partial class OverlayWindow : Window
             if (failed > 0)
                 lines.Add(($"Отмечено проваленными: {failed}", FailBrush));
 
-            // активные не трогаем: они в работе, а не сданы
-            if (result.Active.Count > 0)
-                lines.Add(($"Активных пропущено: {result.Active.Count}", MutedBrush));
+            if (implied.Count > 0)
+                lines.Add(($"По цепочке отмечено ещё: {implied.Count}", OkBrush));
+            if (cleared.Count > 0)
+            {
+                lines.Add(($"Снята ошибочная отметка «выполнен»: {cleared.Count}", OkBrush));
+                foreach (var q in cleared.Take(4))
+                    lines.Add(($"● {App.Services.Progress.NameOf(q)} — активен", QuestBrush));
+            }
+            // остальные активные не трогаем: они в работе, а не сданы
+            if (result.Active.Count > cleared.Count)
+                lines.Add(($"Активных пропущено: {result.Active.Count - cleared.Count}", MutedBrush));
             if (result.Unknown.Count > 0)
                 lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
-            if (added.Count > 0)
+            if (added.Count + implied.Count > 0)
                 lines.Add(("Откатить можно в приложении, вкладка «Квесты»", MutedBrush));
             ShowLines(pt, lines.ToArray());
         }
