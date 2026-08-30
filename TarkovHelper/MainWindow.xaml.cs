@@ -71,6 +71,7 @@ public partial class MainWindow : Window
 
         var questKey = HotkeyNames.Describe(s.Settings.QuestHotkey);
         BtnQuestHotkey.Content = questKey;
+        BtnRaidHotkey.Content = HotkeyNames.Describe(s.Settings.RaidHotkey);
         TxtQuestHelpTitle.Text = $"{questKey} — список квестов торговца:";
         TxtQuestHelp.Text =
             "1. Откройте торговца, вкладку «Задания»." + Environment.NewLine +
@@ -398,6 +399,13 @@ public partial class MainWindow : Window
         CaptureHotkey(BtnQuestHotkey, key =>
         {
             App.Services.Settings.QuestHotkey = key;
+            SaveHotkeys();
+        });
+
+    private void OnRaidHotkeyClick(object sender, RoutedEventArgs e) =>
+        CaptureHotkey(BtnRaidHotkey, key =>
+        {
+            App.Services.Settings.RaidHotkey = key;
             SaveHotkeys();
         });
 

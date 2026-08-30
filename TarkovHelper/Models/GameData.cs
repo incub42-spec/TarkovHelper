@@ -85,6 +85,11 @@ public sealed class Quest
     /// Пусто — «любая локация», так у половины заданий.
     /// </summary>
     public string MapName { get; set; } = "";
+    /// <summary>
+    /// Ключи, без которых задание не сделать. Их забывают взять чаще всего,
+    /// а узнать об этом уже в рейде — значит потерять вылазку.
+    /// </summary>
+    public List<string> NeededKeys { get; set; } = new();
 
     /// <summary>
     /// Условия по торговцам: уровень лояльности или репутация. Именно из-за них
@@ -192,7 +197,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 18;
+    public const int CurrentSchema = 19;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

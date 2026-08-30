@@ -22,6 +22,7 @@ public partial class OverlayWindow : Window
     // Shift к той же клавише: сверка списка с игрой отмечает пачку квестов
     // сданными, поэтому отдельным жестом, а не сама собой
     private const int QuestSyncHotkeyId = 0x5457;
+    private const int RaidHotkeyId = 0x5458;   // F8 — сводка по текущей локации
 
     private static readonly Brush TitleBrush = new SolidColorBrush(Color.FromRgb(0xEC, 0xEF, 0xF1));
     private static readonly Brush QuestBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4D));
@@ -43,6 +44,7 @@ public partial class OverlayWindow : Window
     public static bool HotkeyRegistered { get; private set; }
     public static bool HideoutHotkeyRegistered { get; private set; }
     public static bool QuestHotkeyRegistered { get; private set; }
+    public static bool RaidHotkeyRegistered { get; private set; }
     /// <summary>Текущий оверлей — чтобы настройки могли перерегистрировать клавиши.</summary>
     public static OverlayWindow? Current { get; private set; }
 
@@ -114,6 +116,7 @@ public partial class OverlayWindow : Window
         UnregisterHotKey(hwnd, HideoutHotkeyId);
         UnregisterHotKey(hwnd, QuestHotkeyId);
         UnregisterHotKey(hwnd, QuestSyncHotkeyId);
+        UnregisterHotKey(hwnd, RaidHotkeyId);
 
         // кнопки мыши регистрировать не нужно — они приходят через Raw Input
         var p = App.Services.Settings;
@@ -125,6 +128,8 @@ public partial class OverlayWindow : Window
             || RegisterHotKey(hwnd, QuestHotkeyId, 0, p.QuestHotkey);
         if (!Services.HotkeyNames.IsMouseButton(p.QuestHotkey))
             RegisterHotKey(hwnd, QuestSyncHotkeyId, MOD_SHIFT, p.QuestHotkey);
+        RaidHotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.RaidHotkey)
+            || RegisterHotKey(hwnd, RaidHotkeyId, 0, p.RaidHotkey);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -136,6 +141,7 @@ public partial class OverlayWindow : Window
             UnregisterHotKey(hwnd, HideoutHotkeyId);
             UnregisterHotKey(hwnd, QuestHotkeyId);
             UnregisterHotKey(hwnd, QuestSyncHotkeyId);
+            UnregisterHotKey(hwnd, RaidHotkeyId);
         }
         base.OnClosed(e);
     }
@@ -167,6 +173,10 @@ public partial class OverlayWindow : Window
                 case QuestSyncHotkeyId:
                     handled = true;
                     _ = ScanQuestsAsync(reconcile: true);
+                    break;
+                case RaidHotkeyId:
+                    handled = true;
+                    ShowRaidSummary();
                     break;
             }
         }
@@ -270,6 +280,104 @@ public partial class OverlayWindow : Window
     /// Игра нигде не хранит на диске, что сдано, а список на экране —
     /// единственный полный источник. Отметку можно откатить в приложении.
     /// </summary>
+    /// <summary>
+    /// Сводка по локации, в которую игрок зашёл последней: активные задания
+    /// этой карты, что для них собрать и какие ключи взять. Локацию берём из
+    /// журнала игры, руками указывать ничего не нужно.
+    /// </summary>
+    private void ShowRaidSummary()
+    {
+        GetCursorPos(out var pt);
+
+        var data = App.Services.Data;
+        var progress = App.Services.Progress;
+        var index = App.Services.Index;
+        if (data == null || index == null)
+        {
+            ShowLines(pt, ("База ещё не загружена", MutedBrush));
+            return;
+        }
+
+        var raid = Services.RaidWatcher.Current(App.Services.Settings.GamePath);
+        if (raid == null)
+        {
+            ShowLines(pt,
+                ("Локация неизвестна", FailBrush),
+                ("В журнале игры ещё нет записи о заходе в рейд. Проверьте папку игры в настройках.",
+                    MutedBrush));
+            return;
+        }
+
+        var quests = data.Quests
+            .Where(q => q.MapName == raid.MapName)
+            .Where(q => !progress.CompletedQuests.Contains(q.Id))
+            .Where(q => progress.Fits(q.Faction) && progress.IsAvailable(q))
+            .OrderBy(q => q.TraderName)
+            .ToList();
+
+        var lines = new List<(string, System.Windows.Media.Brush)>
+        {
+            ($"{raid.MapName}: заданий {quests.Count}", OkBrush),
+        };
+
+        if (quests.Count == 0)
+        {
+            lines.Add(("Активных заданий на этой карте нет", MutedBrush));
+            ShowLines(pt, lines.ToArray());
+            return;
+        }
+
+        foreach (var q in quests.Take(6))
+            lines.Add(($"● {q.TraderName}: {progress.NameOf(q)}", QuestBrush));
+        if (quests.Count > 6)
+            lines.Add(($"…и ещё {quests.Count - 6}", MutedBrush));
+
+        // что собрать именно здесь: предметы этих заданий, которых не хватает
+        var wanted = new List<string>();
+        foreach (var q in quests)
+        {
+            foreach (var obj in q.ItemObjectives)
+            {
+                foreach (var itemId in obj.ItemIds.Take(1))
+                {
+                    var needs = index.Get(itemId);
+                    if (needs == null) continue;
+                    var left = Math.Max(0, obj.Count - progress.InStash(itemId));
+                    if (left == 0) continue;
+
+                    var name = needs.Item.Name + (obj.ItemIds.Count > 1
+                        ? $" (или {obj.ItemIds.Count - 1} др.)"
+                        : "");
+                    wanted.Add($"{name} ×{left}" + (obj.FoundInRaid ? " FIR" : ""));
+                }
+            }
+        }
+
+        if (wanted.Count > 0)
+        {
+            lines.Add(($"Собрать: {wanted.Count}", MutedBrush));
+            foreach (var w in wanted.Distinct().Take(6))
+                lines.Add(($"○ {w}", TitleBrush));
+        }
+
+        // ключи забывают чаще всего — без них вылазка впустую
+        var keys = quests
+            .SelectMany(q => q.NeededKeys)
+            .Distinct()
+            .Select(id => data.Items.FirstOrDefault(i => i.Id == id)?.Name)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToList();
+
+        if (keys.Count > 0)
+        {
+            lines.Add(($"Взять ключи: {keys.Count}", FailBrush));
+            foreach (var k in keys.Take(5))
+                lines.Add(($"🔑 {k}", MutedBrush));
+        }
+
+        ShowLines(pt, lines.ToArray());
+    }
+
     private async Task ScanQuestsAsync(bool reconcile)
     {
         if (_scanning) return;

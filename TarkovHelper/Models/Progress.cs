@@ -286,6 +286,8 @@ public sealed class AppSettings
     public uint QuestHotkey { get; set; } = 0x7A;
     /// <summary>Раскладывать квесты по разделам торговца, как это делает игра.</summary>
     public bool GroupQuests { get; set; } = true;
+    /// <summary>Клавиша сводки по текущей локации. F8 по умолчанию.</summary>
+    public uint RaidHotkey { get; set; } = 0x77;
 
     /// <summary>
     /// Облачный OCR Яндекса для сканирования списков. Встроенный движок на

@@ -313,6 +313,17 @@ public static partial class FallbackDataClient
             // остаются пустыми, и вкладка просто не покажет описание.
             quest.Description = LocaleStr(sptRu, $"{id} description") ?? "";
             quest.MapName = MapName(sptRu, Str(t, "map"));
+
+            if (t.TryGetProperty("neededKeys", out var keys) && keys.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in keys.EnumerateArray())
+                {
+                    if (!entry.TryGetProperty("keys", out var list) ||
+                        list.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var key in list.EnumerateArray())
+                        if (key.GetString() is { Length: > 0 } keyId) quest.NeededKeys.Add(keyId);
+                }
+            }
             if (t.TryGetProperty("objectives", out var allObjs) && allObjs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var o in allObjs.EnumerateArray())

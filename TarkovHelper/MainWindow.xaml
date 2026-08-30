@@ -422,6 +422,11 @@
                     <Button x:Name="BtnQuestHotkey" Width="150" Content="F11"
                             Click="OnQuestHotkeyClick"/>
                 </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="Сводка по локации:" Width="180" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnRaidHotkey" Width="150" Content="F8"
+                            Click="OnRaidHotkeyClick"/>
+                </StackPanel>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
                            Text="Нажмите кнопку, затем любую клавишу или кнопку мыши (колёсико, боковые), чтобы переназначить. Esc отменяет. Выбирайте то, что не используется в игре: клавиша перехватывается глобально, а кнопка мыши работает параллельно с игровым действием."/>
                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.7"
