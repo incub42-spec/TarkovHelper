@@ -649,6 +649,11 @@ public partial class OverlayWindow : Window
 
     private void ShowLines(POINT cursor, params (string Text, Brush Brush)[] lines)
     {
+        // полосу сбрасываем до замера панели: её прошлая ширина иначе не даст
+        // панели ужаться под более короткую подсказку
+        LifeBar.BeginAnimation(WidthProperty, null);
+        LifeBar.Width = 0;
+
         PanelContent.Children.Clear();
         for (var i = 0; i < lines.Length; i++)
         {
@@ -679,6 +684,29 @@ public partial class OverlayWindow : Window
         _hideTimer.Stop();
         _hideTimer.Start();
         _dismissTimer.Start();
+        StartLifeBar();
+    }
+
+    /// <summary>
+    /// Полоска времени до закрытия: подсказка гаснет по таймеру, и без неё
+    /// исчезновение выглядит внезапным — непонятно, программа закрыла окно
+    /// или что-то сломалось. Полоса убывает от ширины панели до нуля ровно
+    /// за то время, которое подсказка держится на экране.
+    /// </summary>
+    private void StartLifeBar()
+    {
+        var width = Panel.ActualWidth - Panel.Padding.Left - Panel.Padding.Right;
+        if (width <= 0) return;
+
+        LifeBar.BeginAnimation(WidthProperty, null);
+        LifeBar.Width = width;
+
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(
+            width, 0, _hideTimer.Interval)
+        {
+            FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop,
+        };
+        LifeBar.BeginAnimation(WidthProperty, anim);
     }
 
     /// <summary>Убирает подсказку и останавливает оба таймера.</summary>
@@ -686,6 +714,8 @@ public partial class OverlayWindow : Window
     {
         _hideTimer.Stop();
         _dismissTimer.Stop();
+        LifeBar.BeginAnimation(WidthProperty, null);
+        LifeBar.Width = 0;
         Panel.Visibility = Visibility.Collapsed;
     }
 
