@@ -675,13 +675,14 @@ public static partial class FallbackDataClient
         {
             // сначала пробуем по семейству цепочки: ссылка из дампа ведёт на
             // статью со старым названием, а нынешнее лежит под «X - Part N»
-            var ru = FamilyName(map, families, q.Name)
-                     ?? (string.IsNullOrEmpty(q.WikiTitle)
-                         ? null
-                         : WikiName(map, q.WikiTitle!)
-                           ?? (ManualRussianNames.TryGetValue(q.WikiTitle!, out var manual)
-                               ? manual
-                               : null));
+            // Сначала имена, сверенные со списком в самой игре: вики для этих
+            // квестов отдаёт устаревший заголовок, и он бы их перебил.
+            var ru = (!string.IsNullOrEmpty(q.WikiTitle) &&
+                      ManualRussianNames.TryGetValue(q.WikiTitle!, out var manual)
+                         ? manual
+                         : null)
+                     ?? FamilyName(map, families, q.Name)
+                     ?? (string.IsNullOrEmpty(q.WikiTitle) ? null : WikiName(map, q.WikiTitle!));
             if (ru == null) continue;
 
             var clean = WikiSuffixRegex().Replace(ru, "").Trim();

@@ -166,7 +166,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 11;
+    public const int CurrentSchema = 12;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

@@ -197,7 +197,9 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Торговец" Width="110"
+                            <!-- столбец убирается, когда торговец выбран кнопкой:
+                                 повторять его в каждой строке незачем -->
+                            <GridViewColumn x:Name="ColQuestTrader" Header="Торговец" Width="110"
                                             DisplayMemberBinding="{Binding Trader}"/>
                             <GridViewColumn Header="Квест" Width="330"
                                             DisplayMemberBinding="{Binding Name}"/>

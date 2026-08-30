@@ -88,6 +88,11 @@ internal static partial class QuestMatcher
                 {
                     yield return (text, 0);
 
+                    // Игра дописывает к названию пометку режима: «Легкие
+                    // деньги. Часть 1 [PVE ZONE]». В базе её нет.
+                    var cut = text.IndexOf(" [", StringComparison.Ordinal);
+                    if (cut > 3) yield return (text[..cut], 0);
+
                     var rest = text;
                     for (var i = 0; i < 2; i++)
                     {

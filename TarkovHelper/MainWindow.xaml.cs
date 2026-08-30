@@ -535,6 +535,8 @@ public partial class MainWindow : Window
             rows = rows.Where(r =>
                 r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.Trader.Contains(q, StringComparison.OrdinalIgnoreCase));
+        ShowTraderColumn(_traderTab.Length == 0);
+
         var shown = rows.ToList();
         QuestsList.ItemsSource = shown;
         ApplySort(QuestsList, _questsSort); // список пересобран — сортировку вернуть
@@ -566,6 +568,21 @@ public partial class MainWindow : Window
         if (ChkGroupQuests.IsChecked == true)
             view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(QuestRow.Section)));
         view.Refresh();
+    }
+
+    /// <summary>
+    /// Столбец «Торговец» нужен только на вкладке «Все»: когда торговец выбран
+    /// кнопкой, его имя в каждой строке — лишний шум.
+    /// </summary>
+    private void ShowTraderColumn(bool show)
+    {
+        if (QuestsList.View is not GridView grid) return;
+
+        var present = grid.Columns.Contains(ColQuestTrader);
+        if (show == present) return;
+
+        if (show) grid.Columns.Insert(1, ColQuestTrader);
+        else grid.Columns.Remove(ColQuestTrader);
     }
 
     private void OnGroupQuestsChanged(object sender, RoutedEventArgs e)
