@@ -192,7 +192,9 @@ internal static partial class QuestMatcher
         foreach (var line in lines.OrderBy(l => l.Y))
         {
             var text = line.Text.Trim();
-            if (text.Length < 5) continue;
+            // Названия бывают совсем короткие: «БАДы» — четыре буквы, и порог
+            // в пять символов выбрасывал строку ещё до сопоставления.
+            if (text.Length < 4 || !text.Any(char.IsLetter)) continue;
             if (DoneRegex().IsMatch(text) || ActiveRegex().IsMatch(text) ||
                 FailedRegex().IsMatch(text) || NewRegex().IsMatch(text)) continue;
 
