@@ -1260,8 +1260,9 @@ public partial class MainWindow : Window
     /// </summary>
     internal sealed class StashRow : INotifyPropertyChanged
     {
-        internal StashRow(List<Item> variants)
+        internal StashRow(List<Item> variants, bool needed)
         {
+            Needed = needed;
             // варианты одного имени неразличимы на глаз: жетоны разных уровней
             // — девять записей базы, а в описи это одна строка
             Ids = variants.Select(i => i.Id).ToList();
@@ -1273,6 +1274,8 @@ public partial class MainWindow : Window
 
         public List<string> Ids { get; }
         public string Name { get; }
+        /// <summary>Предмет нужен для квеста или постройки — такие показываем сразу.</summary>
+        public bool Needed { get; }
 
         public int Have => Ids.Sum(App.Services.Progress.InStash);
 
@@ -1324,28 +1327,33 @@ public partial class MainWindow : Window
     private void RebuildStashRows()
     {
         var data = App.Services.Data;
+        var index = App.Services.Index;
         _stashRows = data == null
             ? new List<StashRow>()
             : data.Items
                 .GroupBy(i => i.Name + (i.IsQuestItem ? " [квестовый]" : ""),
                          StringComparer.CurrentCulture)
                 .OrderBy(g => g.Key, StringComparer.CurrentCulture)
-                .Select(g => new StashRow(g.ToList()))
+                .Select(g => new StashRow(g.ToList(),
+                    g.Any(i => index?.Get(i.Id)?.NeededForQuestOrHideout == true)))
                 .ToList();
         ApplyStashFilter();
     }
 
     /// <summary>
-    /// Пустой поиск показывает только то, что лежит: опись, а не каталог из
-    /// трёх тысяч строк. Как только начали вводить название — ищем по всей базе,
-    /// иначе новый предмет не добавить.
+    /// Обычный список — то, что нужно для квестов и убежища, плюс всё уже
+    /// отмеченное: по нему удобно идти сверху вниз с плюсом. Поиск ищет по
+    /// всей базе, иначе предмет, который никому не нужен, в опись не внести.
     /// </summary>
     private void ApplyStashFilter()
     {
         var q = TxtStashSearch.Text.Trim();
-        var rows = q.Length == 0
-            ? _stashRows.Where(r => r.Have > 0)
-            : _stashRows.Where(r => r.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase));
+        IEnumerable<StashRow> rows = q.Length > 0
+            ? _stashRows.Where(r => r.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase))
+            : _stashRows.Where(r => r.Needed || r.Have > 0);
+
+        if (ChkStashOnlyHave.IsChecked == true)
+            rows = rows.Where(r => r.Have > 0);
 
         StashList.ItemsSource = rows.ToList();
     }

@@ -305,13 +305,17 @@
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                     <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
                                Margin="0,0,8,0" Opacity="0.7" Text="Найти предмет:"/>
+                    <CheckBox x:Name="ChkStashOnlyHave" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" Content="Только то, что есть"
+                              Checked="OnStashFilterChanged" Unchecked="OnStashFilterChanged"
+                              ToolTip="Оставить строки, где количество больше нуля"/>
                     <TextBox x:Name="TxtStashSearch" VerticalContentAlignment="Center"
                              TextChanged="OnStashFilterChanged"
-                             ToolTip="Начните вводить название, чтобы добавить предмет в схрон"/>
+                             ToolTip="Поиск идёт по всей базе — так добавляют предмет, которого нет в списке"/>
                 </DockPanel>
 
                 <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.75"
-                           Text="Схрон — это просто опись: предмет и сколько его у вас. Пока строка поиска пуста, видно только то, что есть; чтобы добавить предмет, начните вводить название. Сколько ещё нужно и зачем — считается из этих чисел на других вкладках."/>
+                           Text="Схрон — это просто опись: предмет и сколько его у вас. По умолчанию в списке то, что нужно для квестов и убежища, плюс всё, что вы уже отметили; чтобы добавить любой другой предмет, найдите его поиском — он ищет по всей базе. Плюс и минус меняют на единицу, в поле можно ввести число. Сколько ещё нужно и зачем — считается из этих чисел на других вкладках."/>
 
                 <ListView x:Name="StashList" Background="White" Foreground="#FF15181B"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
