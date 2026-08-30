@@ -524,7 +524,7 @@ public partial class MainWindow : Window
     private void RebuildTraderTabs()
     {
         var traders = _allQuests
-            .Where(r => r.Status == "доступен")
+            .Where(r => r.Status == "активно!")
             .Select(r => r.Trader)
             .Distinct()
             .OrderBy(FallbackDataClient.TraderRank)
@@ -562,7 +562,7 @@ public partial class MainWindow : Window
         RebuildMapFilter();
 
         // в основном окне только то, чем можно заняться сейчас; полный список — по кнопке
-        IEnumerable<QuestRow> rows = _allQuests.Where(r => r.Status == "доступен");
+        IEnumerable<QuestRow> rows = _allQuests.Where(r => r.Status == "активно!");
 
         if (_traderTab.Length > 0)
             rows = rows.Where(r => r.Trader == _traderTab);
@@ -1265,17 +1265,23 @@ public partial class MainWindow : Window
         public string Map => _quest.MapName;
 
         /// <summary>Место квеста в цепочке: сдан, можно брать или ещё закрыт.</summary>
+        /// <summary>
+        /// Состояние словами игры: в списке торговца выданное задание помечено
+        /// «активно!», сданное — «завершено». Свои термины тут только сбивают.
+        /// </summary>
         public string Status => IsCompleted
-            ? "выполнен"
+            ? "завершено"
             : App.Services.Progress.FailedQuests.Contains(_quest.Id) && !_quest.Restartable
-                ? "провален"
-                : App.Services.Progress.IsAvailable(_quest) ? "доступен" : "закрыт";
+                ? "провалено"
+                : App.Services.Progress.IsAvailable(_quest) ? "активно!"
+                    : App.Services.Progress.NotIssued.Contains(_quest.Id) ? "не выдано" : "закрыто";
 
         public Brush StatusBrush => Status switch
         {
-            "доступен" => CheckedBrush,     // зелёный: можно брать прямо сейчас
-            "закрыт" => UncheckedBrush,     // красный: цепочка не пройдена
-            "провален" => UncheckedBrush,   // уже не сдать, если не перезапускаемый
+            "активно!" => CheckedBrush,     // зелёный: можно брать прямо сейчас
+            "закрыто" => UncheckedBrush,    // красный: цепочка не пройдена
+            "не выдано" => MutedTextBrush,  // торговец пока не предлагает
+            "провалено" => UncheckedBrush,  // уже не сдать, если не перезапускаемый
             _ => MutedTextBrush,
         };
 

@@ -217,10 +217,10 @@
                                  повторять его в каждой строке незачем -->
                             <GridViewColumn x:Name="ColQuestTrader" Header="Торговец" Width="110"
                                             DisplayMemberBinding="{Binding Trader}"/>
-                            <GridViewColumn Header="Локация" Width="130"
-                                            DisplayMemberBinding="{Binding Map}"/>
                             <GridViewColumn Header="Квест" Width="330"
                                             DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Локация" Width="130"
+                                            DisplayMemberBinding="{Binding Map}"/>
                             <GridViewColumn Header="Фракция" Width="70"
                                             DisplayMemberBinding="{Binding Faction}"/>
                             <GridViewColumn Header="Статус" Width="90">

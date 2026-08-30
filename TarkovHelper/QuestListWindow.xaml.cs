@@ -41,8 +41,8 @@ public partial class QuestListWindow : Window
     {
         IEnumerable<MainWindow.QuestRow> filtered = CmbStatus.SelectedIndex switch
         {
-            1 => _all.Where(r => r.Status == "доступен"),
-            2 => _all.Where(r => r.Status == "закрыт"),
+            1 => _all.Where(r => r.Status == "активно!"),
+            2 => _all.Where(r => r.Status is "закрыто" or "не выдано"),
             3 => _all.Where(r => r.IsCompleted),
             _ => _all,
         };
