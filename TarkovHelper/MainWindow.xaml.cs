@@ -1376,9 +1376,11 @@ public partial class MainWindow : Window
             // список показывает полную потребность и заставляет держать
             // накопленное в голове.
             ItemId = n.Item.Id;
-            // нужно для того, что доступно сейчас: выданный квест или ближайший
-            // уровень станции
-            NeededNow = n.Needs.Any(x => x.Kind != NeedKind.Barter && x.Available);
+            // Нужно для того, что доступно сейчас: выданный квест или ближайший
+            // уровень станции. Предметы, попавшие в список только ради обменов,
+            // этот фильтр не касается — их показывает своя галочка.
+            NeededNow = !n.NeededForQuestOrHideout ||
+                        n.Needs.Any(x => x.Kind != NeedKind.Barter && x.Available);
             Have = App.Services.Progress.InStash(n.Item.Id);
             var need = n.QuestCount + n.HideoutCount;
             Left = LeftToFind(n);
