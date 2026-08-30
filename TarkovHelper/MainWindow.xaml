@@ -343,6 +343,8 @@
         </TabItem>
 
         <TabItem Header="Настройки">
+            <!-- страница длиннее окна: без прокрутки нижние настройки недоступны -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
             <StackPanel Margin="12" MaxWidth="720" HorizontalAlignment="Left">
                 <TextBlock FontWeight="SemiBold" FontSize="14" Text="База данных (tarkov.dev)"/>
                 <TextBlock x:Name="TxtDataStatus" Margin="0,4,0,6" TextWrapping="Wrap"/>
@@ -446,6 +448,7 @@
                 <TextBlock x:Name="TxtQuestHelp" Margin="12,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
                 <TextBlock x:Name="TxtOcrStatus" Margin="0,6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
+            </ScrollViewer>
         </TabItem>
 
     </TabControl>
