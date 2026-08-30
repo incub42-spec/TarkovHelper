@@ -77,6 +77,10 @@
                     <CheckBox x:Name="ChkHideCompleted" DockPanel.Dock="Right" VerticalAlignment="Center"
                               Content="Скрыть выполненные"
                               Checked="OnQuestFilterChanged" Unchecked="OnQuestFilterChanged"/>
+                    <!-- выполненных сотни, и смотрят их редко — отдельным окном,
+                         а не пятой вкладкой -->
+                    <Button x:Name="BtnCompleted" DockPanel.Dock="Right" Width="160" Margin="0,0,12,0"
+                            Content="Выполненные…" Click="OnShowCompletedClick"/>
                     <TextBox x:Name="TxtQuestSearch" Margin="0,0,12,0"
                              VerticalContentAlignment="Center"
                              TextChanged="OnQuestFilterChanged"

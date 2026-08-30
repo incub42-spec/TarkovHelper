@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -429,6 +429,30 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Выполненные — отдельным окном. Их сотни, и в основном списке они мешают,
+    /// но иногда нужно посмотреть, что именно отмечено, и снять лишнее.
+    /// </summary>
+    private void OnShowCompletedClick(object sender, RoutedEventArgs e)
+    {
+        var completed = _allQuests
+            .Where(r => r.IsCompleted && App.Services.Progress.Fits(r.Faction))
+            .OrderByDescending(r => r.CheckedSort)
+            .ThenBy(r => r.Trader)
+            .ThenBy(r => r.Name)
+            .ToList();
+
+        if (completed.Count == 0)
+        {
+            MessageBox.Show(this, "Выполненных квестов пока нет.", "Выполненные квесты",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        new CompletedQuestsWindow(completed) { Owner = this }.ShowDialog();
+        ApplyQuestFilter(); // в окне могли снять отметку
+    }
+
+    /// <summary>
     /// Своё название квеста. Нужно для квестов, которых ещё нет ни в локалях,
     /// ни на русской вики: их название видно только в самой игре, а придумывать
     /// перевод за игрока нельзя. Название хранится в профиле и переживает
@@ -702,7 +726,8 @@ public partial class MainWindow : Window
         public int TraderPrice { get; }
     }
 
-    private sealed class QuestRow
+    /// <summary>Строка списка квестов; используется и окном выполненных.</summary>
+    internal sealed class QuestRow
     {
         private readonly Quest _quest;
 
