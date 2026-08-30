@@ -59,6 +59,14 @@ public sealed class Progress
 
     public string ModeName => PveMode ? "PvE" : "PvP";
 
+    /// <summary>
+    /// Квесты, которые игра показала активными. Требования в базе отстают от
+    /// игры: у «Поставщика» там 36 уровень, а Прапор выдал его на 35-м. Без
+    /// этой поправки выданный квест пропадал бы из списка, хотя игрок его уже
+    /// взял. Видел своими глазами — важнее любых условий.
+    /// </summary>
+    public HashSet<string> ActiveQuests { get; set; } = new();
+
     /// <summary>Название квеста с учётом ручного переименования.</summary>
     public string NameOf(Quest quest) =>
         QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0
@@ -72,6 +80,10 @@ public sealed class Progress
     /// </summary>
     public bool IsAvailable(Quest quest) =>
         !CompletedQuests.Contains(quest.Id) &&
+        (ActiveQuests.Contains(quest.Id) || MeetsRequirements(quest));
+
+    /// <summary>Условия выдачи по данным базы.</summary>
+    private bool MeetsRequirements(Quest quest) =>
         (!FailedQuests.Contains(quest.Id) || quest.Restartable) &&
         quest.Requires.All(CompletedQuests.Contains) &&
         (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel) &&

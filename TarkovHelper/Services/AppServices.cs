@@ -127,7 +127,10 @@ public sealed class AppServices
     {
         var added = quests.Where(q => Progress.CompletedQuests.Add(q.Id)).ToList();
         foreach (var q in added)
+        {
             Progress.QuestCheckedUtc[q.Id] = DateTime.UtcNow;
+            Progress.ActiveQuests.Remove(q.Id); // сдан — значит уже не в работе
+        }
 
         if (added.Count > 0)
         {
@@ -146,8 +149,13 @@ public sealed class AppServices
     public List<Quest> UnmarkQuestsCompleted(IEnumerable<Quest> quests)
     {
         var removed = new List<Quest>();
+        var noted = false;
         foreach (var q in quests)
         {
+            // «активно!» — это факт, увиденный на экране: он важнее условий
+            // выдачи из базы, которые от игры отстают
+            noted |= Progress.ActiveQuests.Add(q.Id);
+
             var changed = Progress.CompletedQuests.Remove(q.Id);
             changed |= Progress.FailedQuests.Remove(q.Id); // перезапустили — снова в работе
             if (!changed) continue;
@@ -155,6 +163,7 @@ public sealed class AppServices
             removed.Add(q);
         }
 
+        if (noted && removed.Count == 0) SaveProgress();
         if (removed.Count > 0)
         {
             var ids = removed.Select(q => q.Id).ToHashSet();

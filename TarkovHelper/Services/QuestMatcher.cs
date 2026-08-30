@@ -118,7 +118,7 @@ internal static partial class QuestMatcher
         // Кандидатов собираем по всем рядам сразу и раздаём по убыванию счёта.
         // Иначе неверное совпадение занимает квест, и правильный ряд остаётся
         // ни с чем: «Часть З» забирала «Часть 2», а настоящая «Часть 3» вылетала.
-        var pairs = new List<(Row Row, Quest Quest, double Score)>();
+        var pairs = new List<(Row Row, Quest Quest, double Score, int Part)>();
         foreach (var row in rows)
         {
             var rowPart = PartNumber(row.Texts);
@@ -140,16 +140,27 @@ internal static partial class QuestMatcher
                     if (rowPart != null && rowPart == questPart)
                         score = Math.Max(score,
                             Score(WithoutPart(text), q, progress, stripPart: true));
+                    // А порой игра показывает название вовсе без номера:
+                    // «Бункер» вместо «Бункер. Часть 1». Тогда сравниваем с
+                    // названием без хвоста, а какая это часть — решаем ниже.
+                    else if (rowPart == null && questPart != null)
+                        score = Math.Max(score,
+                            Score(text, q, progress, stripPart: true) - 0.02);
                 }
 
-                if (score >= Threshold) pairs.Add((row, q, score));
+                if (score >= Threshold) pairs.Add((row, q, score, questPart ?? 0));
             }
         }
 
         var takenRow = new HashSet<Row>();
         var takenQuest = new HashSet<string>();
         var matched = new Dictionary<Row, (Quest Quest, double Score)>();
-        foreach (var pair in pairs.OrderByDescending(p => p.Score))
+        // При равном счёте из частей цепочки берём первую несданную: их
+        // проходят по порядку, значит активна именно она.
+        foreach (var pair in pairs
+                     .OrderByDescending(p => p.Score)
+                     .ThenBy(p => progress.CompletedQuests.Contains(p.Quest.Id) ? 1 : 0)
+                     .ThenBy(p => p.Part))
         {
             if (takenRow.Contains(pair.Row)) continue;
             if (!takenQuest.Add(pair.Quest.Id)) continue;
