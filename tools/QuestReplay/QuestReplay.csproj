@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>QuestReplay</AssemblyName>
+    <RootNamespace>QuestReplay</RootNamespace>
+  </PropertyGroup>
+
+  <!-- берём боевой разбор: проверяем ровно то, что работает в игре -->
+  <ItemGroup>
+    <Compile Include="..\..\TarkovHelper\Models\GameData.cs" Link="GameData.cs" />
+    <Compile Include="..\..\TarkovHelper\Models\Progress.cs" Link="Progress.cs" />
+    <Compile Include="..\..\TarkovHelper\Services\ItemMatcher.cs" Link="ItemMatcher.cs" />
+    <Compile Include="..\..\TarkovHelper\Services\QuestMatcher.cs" Link="QuestMatcher.cs" />
+  </ItemGroup>
+
+</Project>

@@ -517,6 +517,27 @@ public static partial class FallbackDataClient
     private static string? WikiTitle(string? wikiLink) => NameFromWikiLink(wikiLink);
 
     /// <summary>
+    /// Названия, которых нет на вики: у страницы нет ссылки на английскую
+    /// версию, и связать её с квестом автоматически не выходит. Проверено по
+    /// списку заданий в самой игре.
+    /// </summary>
+    private static readonly Dictionary<string, string> ManualRussianNames = new()
+    {
+        ["Fall Ailment"] = "Осеннее недомогание",
+    };
+
+    /// <summary>
+    /// Русское название с вики. Часть квестов в дампе идёт с пометкой режима
+    /// («Arena Business [PVE ZONE]»), а страница вики называется без неё.
+    /// </summary>
+    private static string? WikiName(IReadOnlyDictionary<string, string> map, string wikiTitle)
+    {
+        if (map.TryGetValue(wikiTitle, out var ru)) return ru;
+        var cut = wikiTitle.IndexOf(" [", StringComparison.Ordinal);
+        return cut > 0 && map.TryGetValue(wikiTitle[..cut], out ru) ? ru : null;
+    }
+
+    /// <summary>
     /// Для квестов и предметов без русского названия (вышли после обновления
     /// локали SPT) достаёт русские имена с вики. Если вики недоступна —
     /// остаются английские, это не ошибка загрузки.
@@ -545,7 +566,10 @@ public static partial class FallbackDataClient
         map = await WikiTitles.ResolveQuestsFromRuAsync(map, ct);
 
         foreach (var q in quests)
-            if (map.TryGetValue(q.WikiTitle!, out var ru)) q.Name = ru;
+        {
+            if (WikiName(map, q.WikiTitle!) is { } ru) q.Name = ru;
+            else if (ManualRussianNames.TryGetValue(q.WikiTitle!, out var manual)) q.Name = manual;
+        }
 
         // Свежее название с вики важнее названия из локали: BSG переименовывает
         // квесты, а локаль отстаёт на месяцы. Но берём его только при настоящем
@@ -555,7 +579,7 @@ public static partial class FallbackDataClient
         foreach (var q in data.Quests)
         {
             if (string.IsNullOrEmpty(q.WikiTitle)) continue;
-            if (!map.TryGetValue(q.WikiTitle!, out var ru)) continue;
+            if (WikiName(map, q.WikiTitle!) is not { } ru) continue;
 
             var clean = WikiSuffixRegex().Replace(ru, "").Trim();
             if (clean.Length == 0 || clean == q.Name) continue;
