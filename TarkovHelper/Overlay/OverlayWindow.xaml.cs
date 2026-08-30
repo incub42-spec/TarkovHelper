@@ -574,6 +574,18 @@ public partial class OverlayWindow : Window
             match ??= await ScanRegionAsync(pt, pt.X - 180, pt.Y - 120, 760, 420,
                 scanId, 3, r => bestRejected = Better(bestRejected, r));
 
+            // Проход 4: встроенный движок не справился — пробуем облако. Оно
+            // читает кириллицу заметно точнее («Маркер MS2jaa» → «Маркер
+            // MS2000»), но кадр уходит в сеть и ответ идёт доли секунды,
+            // поэтому только последней попыткой и только если включено.
+            if (match == null && App.Services.Settings.UseYandexOcr &&
+                !string.IsNullOrWhiteSpace(App.Services.Settings.YandexOcrKey))
+            {
+                match = await ScanRegionAsync(pt, pt.X - 480, pt.Y - 185, 1040, 175,
+                    scanId, 4, r => bestRejected = Better(bestRejected, r),
+                    threshold: 0.62, dropShortLabels: true, useCloud: true);
+            }
+
             if (match == null)
             {
                 // честно говорим, ЧТО пошло не так: не прочиталось или не нашлось в базе
@@ -620,7 +632,7 @@ public partial class OverlayWindow : Window
     private async Task<Services.ItemMatcher.MatchResult?> ScanRegionAsync(
         POINT pt, int rx, int ry, int rw, int rh,
         string scanId, int passNo, Action<Services.ItemMatcher.MatchResult?> onRejected,
-        double threshold = 0.70, bool dropShortLabels = false)
+        double threshold = 0.70, bool dropShortLabels = false, bool useCloud = false)
     {
         // своя рамка от прошлого прохода/нажатия не должна попасть в кадр:
         // пунктир, пересекающий тултип, превращает его в нечитаемые точки
@@ -653,8 +665,12 @@ public partial class OverlayWindow : Window
         // bothLanguages — половина названий в игре латиницей, и русский движок их
         // коверкает («Magnum Research» → «Мадпит РеБеагсћ»), поэтому кадр читается
         // ещё и английским движком.
+        // Двумя движками кадр читается только локально: облако само разбирает
+        // и кириллицу, и латиницу, и второй проход ему не нужен.
         var lines = await Services.ScreenOcr.RecognizeLayoutAsync(
-            x, y, w, h, scaleHint: 3, savePngPath: png, bothLanguages: true);
+            x, y, w, h, scaleHint: 3, savePngPath: png,
+            bothLanguages: !useCloud, preferCloud: useCloud);
+        var cloudRead = useCloud && Services.ScreenOcr.LastUsedCloud;
         FlashScanRegion(x, y, w, h);
 
         // радиус ячейки инвентаря — от ширины монитора (~80 px при 2000)
@@ -748,7 +764,8 @@ public partial class OverlayWindow : Window
             onRejected(rejected);
 
         AppendItemDebug(
-            $"===== скан {scanId} проход {passNo} область=({x},{y} {w}x{h}) курсор=({pt.X},{pt.Y}) png={System.IO.Path.GetFileName(png) ?? "-"}\n" +
+            $"===== скан {scanId} проход {passNo} область=({x},{y} {w}x{h}) курсор=({pt.X},{pt.Y}) " +
+            $"движок={(cloudRead ? "облако" : "встроенный")} png={System.IO.Path.GetFileName(png) ?? "-"}\n" +
             debug.ToString() + diag +
             (accepted != null
                 ? $"  => ПРИНЯТ: {accepted.Item.Name} (score {accepted.Score:F2}, строка «{accepted.MatchedLine}»)\n"
