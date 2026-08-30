@@ -263,10 +263,14 @@ public sealed class AppServices
         if (added) SaveProgress();
     }
 
-    /// <summary>Связывает прочитанную строку с квестом: имя запомнится в профиле.</summary>
+    /// <summary>
+    /// Связывает прочитанную строку с квестом. Имя квеста не трогаем: строка
+    /// приходит из OCR и может быть с опечатками — она нужна только для того,
+    /// чтобы в следующий раз эту же строку узнать.
+    /// </summary>
     public void LinkUnmatched(string trader, string row, Quest quest)
     {
-        Progress.QuestNames[quest.Id] = row.Trim();
+        Progress.QuestAliases[row.Trim()] = quest.Id;
         if (Progress.UnmatchedRows.TryGetValue(trader, out var kept))
             kept.RemoveAll(x => x == row);
         SaveProgress();

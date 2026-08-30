@@ -230,9 +230,20 @@ internal static partial class QuestMatcher
         // Кандидатов собираем по всем рядам сразу и раздаём по убыванию счёта.
         // Иначе неверное совпадение занимает квест, и правильный ряд остаётся
         // ни с чем: «Часть З» забирала «Часть 2», а настоящая «Часть 3» вылетала.
+        var byId = data.Quests.ToDictionary(q => q.Id);
         var pairs = new List<(Row Row, Quest Quest, double Score, int Part)>();
         foreach (var row in rows)
         {
+            // строку могли связать вручную — тогда гадать не о чем
+            var alias = row.Texts
+                .Select(t => progress.QuestAliases.TryGetValue(t.Trim(), out var id) ? id : null)
+                .FirstOrDefault(id => id != null);
+            if (alias != null && byId.TryGetValue(alias, out var linked))
+            {
+                pairs.Add((row, linked, 1.0, 0));
+                continue;
+            }
+
             var rowPart = PartNumber(row.Texts);
             foreach (var q in data.Quests)
             {
@@ -260,7 +271,12 @@ internal static partial class QuestMatcher
                             Score(text, q, progress, stripPart: true) - 0.02 - penalty);
                 }
 
-                if (score >= Threshold) pairs.Add((row, q, score, questPart ?? 0));
+                // На коротком названии одна ошибка OCR стоит дорого: у «БАДы»
+                // это четверть строки. Порог для таких смягчаем, но лишь
+                // чуть-чуть — иначе начнут цепляться случайные совпадения.
+                var shortName = progress.NameOf(q).Length <= 8;
+                if (score >= (shortName ? 0.72 : Threshold))
+                    pairs.Add((row, q, score, questPart ?? 0));
             }
         }
 
