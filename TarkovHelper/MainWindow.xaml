@@ -72,9 +72,12 @@
                               ToolTip="Убрать строки, где нужное количество уже лежит в схроне"/>
                     <CheckBox x:Name="ChkOnlyNow" DockPanel.Dock="Right" VerticalAlignment="Center"
                               Margin="12,0,0,0" IsChecked="True"
-                              Content="Только доступное сейчас"
+                              Content="Только нужное сейчас"
                               Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
                               ToolTip="Из отмеченных источников оставить выданные квесты, ближайшие уровни станций и обмены по достигнутой лояльности"/>
+                    <!-- слева — что вообще показывать, справа — как это сузить -->
+                    <Border DockPanel.Dock="Right" Width="1" Margin="14,3,2,3"
+                            Background="#FFC8CDD3"/>
                     <CheckBox x:Name="ChkBarters" DockPanel.Dock="Right" VerticalAlignment="Center"
                               Margin="12,0,0,0" Content="Обмены"
                               Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
