@@ -51,7 +51,9 @@ public partial class OverlayWindow : Window
         Width = SystemParameters.VirtualScreenWidth;
         Height = SystemParameters.VirtualScreenHeight;
 
-        _hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+        // десять секунд: успеть прочитать список квестов и обменов, не отвлекаясь
+        // от разбора лута; раньше срока подсказка убирается мышью
+        _hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _hideTimer.Tick += (_, _) => HidePanel();
 
         _dismissTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
