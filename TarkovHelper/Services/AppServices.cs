@@ -146,7 +146,13 @@ public sealed class AppServices
     /// списка завершённых, — и найти их среди сотен выполненных почти нельзя.
     /// Поэтому снимаем сразу, как только игра показала обратное.
     /// </summary>
-    public List<Quest> UnmarkQuestsCompleted(IEnumerable<Quest> quests)
+    /// <param name="issued">
+    /// Торговец квест выдал: статус «активно!». У «новое!» это неизвестно —
+    /// такой квест может быть и заблокированным, замок игра пишет только в
+    /// карточке справа. Тогда просто снимаем ложную отметку, не объявляя
+    /// квест доступным.
+    /// </param>
+    public List<Quest> UnmarkQuestsCompleted(IEnumerable<Quest> quests, bool issued = true)
     {
         var removed = new List<Quest>();
         var noted = false;
@@ -154,7 +160,7 @@ public sealed class AppServices
         {
             // «активно!» — это факт, увиденный на экране: он важнее условий
             // выдачи из базы, которые от игры отстают
-            noted |= Progress.ActiveQuests.Add(q.Id);
+            if (issued) noted |= Progress.ActiveQuests.Add(q.Id);
 
             var changed = Progress.CompletedQuests.Remove(q.Id);
             changed |= Progress.FailedQuests.Remove(q.Id); // перезапустили — снова в работе

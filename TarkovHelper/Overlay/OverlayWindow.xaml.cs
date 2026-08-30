@@ -303,8 +303,13 @@ public partial class OverlayWindow : Window
             // квесты цепочки сданы, даже если мы их не сканировали
             var implied = App.Services.InferCompletedFromChain(
                 result.Completed.Concat(result.Active).Concat(result.Failed));
-            // а активный квест не сдан — снимаем отметку, если она была ошибочной
+            // по «новое!» цепочку не достраиваем: заблокированный квест виден
+            // в списке, а предыдущие в его цепочке ещё не сданы
+            // а активный квест не сдан — снимаем отметку, если она была ошибочной.
+            // «новое!» тоже означает «не сдан», но доступность из него не следует:
+            // такой квест бывает и под замком
             var cleared = App.Services.UnmarkQuestsCompleted(result.Active);
+            cleared.AddRange(App.Services.UnmarkQuestsCompleted(result.New, issued: false));
             var lines = new List<(string, System.Windows.Media.Brush)>
             {
                 added.Count > 0
@@ -330,6 +335,8 @@ public partial class OverlayWindow : Window
             // остальные активные не трогаем: они в работе, а не сданы
             if (result.Active.Count > cleared.Count)
                 lines.Add(($"Активных пропущено: {result.Active.Count - cleared.Count}", MutedBrush));
+            if (result.New.Count > 0)
+                lines.Add(($"Новых (ещё не взятых) в кадре: {result.New.Count}", MutedBrush));
             if (result.Unknown.Count > 0)
                 lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
             // Список без завершённых — это ровно доступные квесты торговца.

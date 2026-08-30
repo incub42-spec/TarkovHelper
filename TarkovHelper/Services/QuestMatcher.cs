@@ -20,6 +20,14 @@ internal static partial class QuestMatcher
     private static partial Regex FailedRegex();
 
     /// <summary>
+    /// «новое!» — квест, который игрок ещё не открывал. Он может быть и
+    /// доступным, и заблокированным: замок игра пишет только в карточке
+    /// справа, в строке списка его не видно.
+    /// </summary>
+    [GeneratedRegex(@"(?i)^\W*(новое|new)\W*$")]
+    private static partial Regex NewRegex();
+
+    /// <summary>
     /// Хвост «. Часть 2» в конце названия. Цифру не требуем: OCR подменяет её
     /// похожей буквой, а хвост всё равно надо отрезать.
     /// </summary>
@@ -46,13 +54,16 @@ internal static partial class QuestMatcher
     /// статусом «активно!», Unknown — название узнали, а статуса в строке нет.
     /// </summary>
     public sealed record Result(
-        List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> Unknown,
+        List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
+        List<Quest> Unknown,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
-        public int Total => Completed.Count + Active.Count + Failed.Count + Unknown.Count;
+        public int Total =>
+            Completed.Count + Active.Count + Failed.Count + New.Count + Unknown.Count;
 
         /// <summary>Все узнанные квесты кадра.</summary>
-        public IEnumerable<Quest> Seen => Completed.Concat(Active).Concat(Failed).Concat(Unknown);
+        public IEnumerable<Quest> Seen =>
+            Completed.Concat(Active).Concat(Failed).Concat(New).Concat(Unknown);
 
         /// <summary>Чей это список: торговец, которому принадлежит большинство строк.</summary>
         public string? Trader => Seen
@@ -91,11 +102,13 @@ internal static partial class QuestMatcher
         var doneMarks = new List<(double X, double Y)>();
         var activeMarks = new List<(double X, double Y)>();
         var failedMarks = new List<(double X, double Y)>();
+        var newMarks = new List<(double X, double Y)>();
         foreach (var l in lines)
         {
             if (FailedRegex().IsMatch(l.Text)) failedMarks.Add((l.X, l.Y));
             else if (DoneRegex().IsMatch(l.Text)) doneMarks.Add((l.X, l.Y));
             else if (ActiveRegex().IsMatch(l.Text)) activeMarks.Add((l.X, l.Y));
+            else if (NewRegex().IsMatch(l.Text)) newMarks.Add((l.X, l.Y));
         }
 
         // Одну строку списка читают оба движка OCR, каждый по-своему: русский
@@ -108,7 +121,7 @@ internal static partial class QuestMatcher
             var text = line.Text.Trim();
             if (text.Length < 5) continue;
             if (DoneRegex().IsMatch(text) || ActiveRegex().IsMatch(text) ||
-                FailedRegex().IsMatch(text)) continue;
+                FailedRegex().IsMatch(text) || NewRegex().IsMatch(text)) continue;
 
             var row = rows.LastOrDefault();
             if (row != null && Math.Abs(row.Y - line.Y) <= 12) row.Texts.Add(text);
@@ -171,6 +184,7 @@ internal static partial class QuestMatcher
         var completed = new List<Quest>();
         var active = new List<Quest>();
         var failed = new List<Quest>();
+        var fresh = new List<Quest>();
         var unknown = new List<Quest>();
         var debug = new System.Text.StringBuilder();
 
@@ -181,9 +195,11 @@ internal static partial class QuestMatcher
             var isDone = doneMarks.Any(m => Math.Abs(m.Y - row.Y) <= rowTolerance && m.X > row.X);
             var isActive = activeMarks.Any(m => Math.Abs(m.Y - row.Y) <= rowTolerance && m.X > row.X);
             var isFailed = failedMarks.Any(m => Math.Abs(m.Y - row.Y) <= rowTolerance && m.X > row.X);
+            var isNew = newMarks.Any(m => Math.Abs(m.Y - row.Y) <= rowTolerance && m.X > row.X);
             var status = isFailed ? "провален"
                 : isActive ? "активен"
-                : isDone ? "завершён" : "без статуса";
+                : isDone ? "завершён"
+                : isNew ? "новый" : "без статуса";
 
             matched.TryGetValue(row, out var hit);
             debug.AppendLine($"  y={row.Y,5:F0} | {string.Join(" / ", row.Texts)}" +
@@ -194,11 +210,13 @@ internal static partial class QuestMatcher
             if (isFailed) failed.Add(hit.Quest);
             else if (isActive) active.Add(hit.Quest);
             else if (isDone) completed.Add(hit.Quest);
+            else if (isNew) fresh.Add(hit.Quest);
             else unknown.Add(hit.Quest);
         }
 
-        return new Result(completed, active, failed, unknown, area, lines.Count,
-            doneMarks.Count + activeMarks.Count + failedMarks.Count, debug.ToString(),
+        return new Result(completed, active, failed, fresh, unknown, area, lines.Count,
+            doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
+            debug.ToString(),
             rows.Count == 0 ? 0 : rows[^1].Y);
     }
 

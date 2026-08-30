@@ -656,6 +656,14 @@ public partial class MainWindow : Window
             TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
                                   prefix + string.Join("; ", shown.Select(c => c.Describe()));
         }
+
+        // Квест, увиденный сканированием со статусом «активно!», торговец уже
+        // выдал — что бы ни говорили требования из базы. Без этой строки
+        // получается ерунда: «доступен», а рядом «не хватает уровня».
+        if (App.Services.Progress.ActiveQuests.Contains(q.Id))
+            TxtQuestChain.Text += (TxtQuestChain.Text.Length > 0 ? Environment.NewLine : "") +
+                                  "Взят в игре — сканирование видело его активным, " +
+                                  "поэтому требования выше уже неактуальны.";
     }
 
     /// <summary>
