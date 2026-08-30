@@ -42,10 +42,11 @@ internal static partial class QuestScanner
         public bool IsAvailableList => Completed.Count == 0 && Total >= 3;
 
         /// <summary>
-        /// Все строки со статусом узнаны по названию. Если нет — часть списка
-        /// не распозналась, и делать выводы из отсутствия квеста в кадре нельзя.
+        /// Строки со статусом, которые не удалось привязать к квесту базы.
+        /// Это либо не распознанное название, либо задание, которого в базе
+        /// нет вовсе, — событийные и «Выйти с локации» туда не попадают.
         /// </summary>
-        public bool FullyRead => Total >= StatusMarks;
+        public int Unmatched => Math.Max(0, StatusMarks - Total);
     }
 
     [GeneratedRegex("(?i)заверш|выполн|complet")]

@@ -341,12 +341,6 @@ public partial class OverlayWindow : Window
                 {
                     lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
                 }
-                else if (reconcile && !result.FullyRead)
-                {
-                    lines.Add(("✕ Часть строк не распозналась — сверка отменена", FailBrush));
-                    lines.Add(($"Статусов в кадре: {result.StatusMarks}, названий узнано: {result.Total}",
-                        MutedBrush));
-                }
                 else if (reconcile)
                 {
                     App.Services.MarkQuestsCompleted(missing, continueScan: true);
@@ -356,6 +350,11 @@ public partial class OverlayWindow : Window
                         lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
                     if (missing.Count > 6)
                         lines.Add(($"…и ещё {missing.Count - 6}", MutedBrush));
+                    // строка со статусом, которую не привязали к базе, могла быть
+                    // как событийным заданием, так и не распознанным квестом
+                    if (result.Unmatched > 0)
+                        lines.Add(($"Строк без совпадения в базе: {result.Unmatched} — " +
+                                   "проверьте список выше", FailBrush));
                 }
                 else
                 {
