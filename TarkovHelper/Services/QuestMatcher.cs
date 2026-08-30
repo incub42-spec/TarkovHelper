@@ -57,6 +57,13 @@ internal static partial class QuestMatcher
     [GeneratedRegex(@"(?i)^.{0,3}?(сюжетные|story)\s*$")]
     private static partial Regex StoryHeaderRegex();
 
+    /// <summary>
+    /// Галочки над списком. Видны, только когда список прокручен в самое
+    /// начало, — по ним и понятно, что обход начался с верха.
+    /// </summary>
+    [GeneratedRegex(@"(?i)заблокирован|locked")]
+    private static partial Regex ListTopRegex();
+
     /// <summary>Эти разделы в списке ниже любого уровня лояльности.</summary>
     public const int KeySection = 5;
     public const int OperationalSection = 6;
@@ -120,7 +127,7 @@ internal static partial class QuestMatcher
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
         List<Quest> Unknown, List<Quest> Ordered, Dictionary<string, int> Sections,
         Dictionary<string, string> ShortNames, HashSet<string> FullNames,
-        List<string> UnmatchedRows, HashSet<int> SeenSections,
+        List<string> UnmatchedRows, HashSet<int> SeenSections, bool AtListTop,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -375,6 +382,7 @@ internal static partial class QuestMatcher
 
         return new Result(completed, active, failed, fresh, unknown, ordered, sections, shortNames,
             fullNames, unmatchedRows, seenSections,
+            lines.Any(l => ListTopRegex().IsMatch(l.Text)),
             area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),

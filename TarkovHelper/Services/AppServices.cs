@@ -283,12 +283,16 @@ public sealed class AppServices
     /// <summary>Разделы, попавшие в кадры текущего обхода.</summary>
     private readonly Dictionary<string, HashSet<int>> _walkSections = new();
 
+    /// <summary>Торговцы, у которых обход начинался с верха списка.</summary>
+    private readonly HashSet<string> _walkFromTop = new();
+
     /// <summary>Запоминает, какие разделы списка попались в кадр.</summary>
-    public void RememberSeenSections(string trader, IEnumerable<int> sections)
+    public void RememberSeenSections(string trader, IEnumerable<int> sections, bool atListTop)
     {
         if (!_walkSections.TryGetValue(trader, out var kept))
             _walkSections[trader] = kept = new HashSet<int>();
         foreach (var s in sections) kept.Add(s);
+        if (atListTop) _walkFromTop.Add(trader);
     }
 
     public int RememberSeenQuests(string trader, IEnumerable<Quest> shown)
@@ -326,9 +330,10 @@ public sealed class AppServices
         _walkSections.Remove(trader);
         if (Data == null) return new List<Quest>();
 
-        // Начало списка в кадр не попадало — значит верх мы не видели. Судить
-        // можно только о тех разделах, что действительно просмотрены.
-        var partial = sections.Count > 0 && !sections.Contains(1);
+        // Верх списка узнаём по галочкам «Завершенные»/«Заблокированные»: они
+        // видны, только когда список прокручен в начало. Не видели их — судим
+        // лишь о тех разделах, что действительно попались в кадр.
+        var partial = !_walkFromTop.Remove(trader);
 
         var notIssued = new List<Quest>();
         var changed = false;
