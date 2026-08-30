@@ -43,12 +43,24 @@ internal static partial class QuestMatcher
     [GeneratedRegex(@"(?i)(уровень\s+лояльн\w*|loyalty\s+level)\D*([0-9a-zа-я|])")]
     private static partial Regex LoyaltyHeaderRegex();
 
-    /// <summary>Раздел «Ключевые» — идёт после всех уровней лояльности.</summary>
+    /// <summary>
+    /// Разделы после уровней лояльности: «Ключевые», «Оперативные»,
+    /// «Сюжетные». Заголовок надо узнать хотя бы для того, чтобы он не ушёл
+    /// в кандидаты на название квеста.
+    /// </summary>
     [GeneratedRegex(@"(?i)^.{0,3}?(ключевые|key\s+tasks?)\s*$")]
     private static partial Regex KeyHeaderRegex();
 
-    /// <summary>Ключевые в списке ниже любого уровня лояльности.</summary>
+    [GeneratedRegex(@"(?i)^.{0,3}?(оперативные|operational)\s*$")]
+    private static partial Regex OperationalHeaderRegex();
+
+    [GeneratedRegex(@"(?i)^.{0,3}?(сюжетные|story)\s*$")]
+    private static partial Regex StoryHeaderRegex();
+
+    /// <summary>Эти разделы в списке ниже любого уровня лояльности.</summary>
     public const int KeySection = 5;
+    public const int OperationalSection = 6;
+    public const int StorySection = 7;
 
     /// <summary>Номер части в конце названия: «. Часть 3» → 3, иначе null.</summary>
     [GeneratedRegex(@"(?i)(часть|part)\s*([0-9a-zа-я|])\s*$")]
@@ -102,6 +114,7 @@ internal static partial class QuestMatcher
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> New,
         List<Quest> Unknown, List<Quest> Ordered, Dictionary<string, int> Sections,
+        Dictionary<string, string> ShortNames,
         Region Area, int LinesRead, int StatusMarks, string Log, double LastRowY)
     {
         public int Total =>
@@ -174,6 +187,16 @@ internal static partial class QuestMatcher
             if (KeyHeaderRegex().IsMatch(text))
             {
                 sectionMarks.Add((line.Y, KeySection));
+                continue;
+            }
+            if (OperationalHeaderRegex().IsMatch(text))
+            {
+                sectionMarks.Add((line.Y, OperationalSection));
+                continue;
+            }
+            if (StoryHeaderRegex().IsMatch(text))
+            {
+                sectionMarks.Add((line.Y, StorySection));
                 continue;
             }
             if (LoyaltyHeaderRegex().Match(text) is { Success: true } header)
@@ -252,10 +275,14 @@ internal static partial class QuestMatcher
         // порядок строк сверху вниз: в игре он свой, из данных не выводится
         var ordered = new List<Quest>();
         var sections = new Dictionary<string, int>();
+        // имена, которые игра показывает короче, чем они записаны в базе
+        var shortNames = new Dictionary<string, string>();
         var debug = new System.Text.StringBuilder();
 
-        foreach (var row in rows)
+        for (var index = 0; index < rows.Count; index++)
         {
+            var row = rows[index];
+
             // статус игра пишет в том же ряду правее названия
             const double rowTolerance = 22;
             var isDone = doneMarks.Any(m => Math.Abs(m.Y - row.Y) <= rowTolerance && m.X > row.X);
@@ -275,6 +302,21 @@ internal static partial class QuestMatcher
             if (hit.Quest == null) continue;
             ordered.Add(hit.Quest);
 
+            // Игра показывает «Бункер», а в базе он «Бункер. Часть 1»: локаль
+            // хранит номер части, которого в клиенте нет. Раз строка уверенно
+            // легла на квест и номера в ней не было — запоминаем короткое имя.
+            // Берём его из базы, отрезав хвост, а не из OCR: так в названии
+            // не появится мусор от распознавания.
+            // крайние ряды кадр режет пополам, и от названия может остаться
+            // огрызок — по нему сокращать имя нельзя
+            var wholeRow = index > 0 && index < rows.Count - 1;
+            if (wholeRow && hit.Score >= 0.9 && PartNumber(row.Texts) == null)
+            {
+                var full = progress.NameOf(hit.Quest);
+                if (PartNumber(new[] { full }) != null)
+                    shortNames[hit.Quest.Id] = WithoutPart(full);
+            }
+
             // раздел квеста — последний заголовок выше его строки
             var section = sectionMarks.LastOrDefault(m => m.Y < row.Y - 4);
             if (section.Section > 0) sections[hit.Quest.Id] = section.Section;
@@ -286,7 +328,7 @@ internal static partial class QuestMatcher
             else unknown.Add(hit.Quest);
         }
 
-        return new Result(completed, active, failed, fresh, unknown, ordered, sections,
+        return new Result(completed, active, failed, fresh, unknown, ordered, sections, shortNames,
             area, lines.Count,
             doneMarks.Count + activeMarks.Count + failedMarks.Count + newMarks.Count,
             debug.ToString(),

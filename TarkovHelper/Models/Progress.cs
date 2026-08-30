@@ -101,6 +101,8 @@ public sealed class Progress
     {
         0 => "Раздел неизвестен — список не сканировали",
         5 => "Ключевые",
+        6 => "Оперативные",
+        7 => "Сюжетные",
         var l => $"Уровень лояльности {l}",
     };
 
@@ -132,11 +134,18 @@ public sealed class Progress
         }
     }
 
-    /// <summary>Название квеста с учётом ручного переименования.</summary>
+    /// <summary>
+    /// Названия, увиденные в игре. Локаль порой подробнее клиента: в базе
+    /// «Бункер. Часть 1», а игра пишет просто «Бункер». Список сверяют
+    /// глазами с экраном, поэтому в приложении должно стоять то же имя.
+    /// </summary>
+    public Dictionary<string, string> SeenNames { get; set; } = new();
+
+    /// <summary>Название квеста: своё, затем увиденное в игре, затем из базы.</summary>
     public string NameOf(Quest quest) =>
-        QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0
-            ? custom
-            : quest.Name;
+        QuestNames.TryGetValue(quest.Id, out var custom) && custom.Length > 0 ? custom
+        : SeenNames.TryGetValue(quest.Id, out var seen) && seen.Length > 0 ? seen
+        : quest.Name;
 
     /// <summary>
     /// Квест можно взять прямо сейчас: сам не сдан, а все предыдущие в цепочке

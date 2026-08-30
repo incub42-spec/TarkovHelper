@@ -527,14 +527,27 @@ public static partial class FallbackDataClient
     };
 
     /// <summary>
-    /// Русское название с вики. Часть квестов в дампе идёт с пометкой режима
-    /// («Arena Business [PVE ZONE]»), а страница вики называется без неё.
+    /// Русское название с вики. Заголовок статьи и ссылка из дампа сходятся
+    /// не всегда: регистр гуляет («The Bunker» против «The bunker - Part 1»),
+    /// у первой части цепочки номер бывает только в вики, а часть квестов идёт
+    /// с пометкой режима («Arena Business [PVE ZONE]»), которой на вики нет.
     /// </summary>
     private static string? WikiName(IReadOnlyDictionary<string, string> map, string wikiTitle)
     {
-        if (map.TryGetValue(wikiTitle, out var ru)) return ru;
+        foreach (var key in WikiKeys(wikiTitle))
+            if (map.TryGetValue(key, out var ru)) return ru;
+        return null;
+    }
+
+    private static IEnumerable<string> WikiKeys(string wikiTitle)
+    {
+        yield return wikiTitle;
+        yield return wikiTitle + " - Part 1";
+
         var cut = wikiTitle.IndexOf(" [", StringComparison.Ordinal);
-        return cut > 0 && map.TryGetValue(wikiTitle[..cut], out ru) ? ru : null;
+        if (cut <= 0) yield break;
+        yield return wikiTitle[..cut];
+        yield return wikiTitle[..cut] + " - Part 1";
     }
 
     /// <summary>
@@ -564,6 +577,8 @@ public static partial class FallbackDataClient
         // игроки, там названия совпадают с текущим клиентом.
         status?.Report("Резервный источник: русские названия квестов с русской вики…");
         map = await WikiTitles.ResolveQuestsFromRuAsync(map, ct);
+        // заголовки статей приходят как есть, регистр у них гуляет
+        map = new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
 
         foreach (var q in quests)
         {
