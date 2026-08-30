@@ -229,6 +229,29 @@ public sealed class AppServices
             .ToList();
     }
 
+    /// <summary>
+    /// Сверка со списком игры: отмечает сданными всё, что программа считает
+    /// доступным у этого торговца, а игра в кадре не показала. Повторяем,
+    /// пока список не перестанет расти: отметив квест сданным, мы открываем
+    /// следующий в цепочке — а его в списке игры тоже не было, значит и он
+    /// сдан.
+    /// </summary>
+    public List<Quest> ReconcileTrader(string trader, IEnumerable<Quest> shown)
+    {
+        var seen = shown.ToList();
+        var marked = new List<Quest>();
+        // цепочки короткие, но от опечатки в данных петля не нужна
+        for (var round = 0; round < 20; round++)
+        {
+            var missing = AvailableButNotShown(trader, seen);
+            if (missing.Count == 0) break;
+            var added = MarkQuestsCompleted(missing, continueScan: true);
+            if (added.Count == 0) break;
+            marked.AddRange(added);
+        }
+        return marked;
+    }
+
     /// <summary>Откат последнего сканирования списка квестов.</summary>
     public int UndoQuestScan()
     {

@@ -336,32 +336,43 @@ public partial class OverlayWindow : Window
             // Всё, что мы считаем доступным, но игра не показала, уже сдано.
             if (result.IsAvailableList && result.Trader is { } trader)
             {
-                var missing = App.Services.AvailableButNotShown(trader, result.Seen);
-                if (missing.Count == 0)
+                if (reconcile)
                 {
-                    lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
-                }
-                else if (reconcile)
-                {
-                    App.Services.MarkQuestsCompleted(missing, continueScan: true);
-                    lines.Add(($"✓ {trader}: отмечено сданными {missing.Count} — их нет в списке игры",
-                        OkBrush));
-                    foreach (var q in missing.Take(6))
-                        lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
-                    if (missing.Count > 6)
-                        lines.Add(($"…и ещё {missing.Count - 6}", MutedBrush));
-                    // строка со статусом, которую не привязали к базе, могла быть
-                    // как событийным заданием, так и не распознанным квестом
-                    if (result.Unmatched > 0)
-                        lines.Add(($"Строк без совпадения в базе: {result.Unmatched} — " +
-                                   "проверьте список выше", FailBrush));
+                    var marked = App.Services.ReconcileTrader(trader, result.Seen);
+                    if (marked.Count == 0)
+                    {
+                        lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
+                    }
+                    else
+                    {
+                        lines.Add(($"✓ {trader}: отмечено сданными {marked.Count} — " +
+                                   "их нет в списке игры", OkBrush));
+                        foreach (var q in marked.Take(6))
+                            lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
+                        if (marked.Count > 6)
+                            lines.Add(($"…и ещё {marked.Count - 6}", MutedBrush));
+                        // строка со статусом, которую не привязали к базе, могла
+                        // быть как событийным заданием, так и не распознанным квестом
+                        if (result.Unmatched > 0)
+                            lines.Add(($"Строк без совпадения в базе: {result.Unmatched} — " +
+                                       "проверьте список выше", FailBrush));
+                    }
                 }
                 else
                 {
-                    lines.Add(($"{trader}: у нас доступных на {missing.Count} больше, чем в игре",
-                        MutedBrush));
-                    lines.Add(($"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} — " +
-                               "отметить их сданными (список должен быть виден целиком)", MutedBrush));
+                    var missing = App.Services.AvailableButNotShown(trader, result.Seen);
+                    if (missing.Count == 0)
+                    {
+                        lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
+                    }
+                    else
+                    {
+                        lines.Add(($"{trader}: у нас доступных на {missing.Count} больше, чем в игре",
+                            MutedBrush));
+                        lines.Add(($"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)}" +
+                                   " — отметить их сданными (список должен быть виден целиком)",
+                            MutedBrush));
+                    }
                 }
             }
 
