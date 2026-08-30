@@ -124,66 +124,76 @@ public partial class MainWindow : Window
     private void RefreshProfiles()
     {
         _switchingProfile = true;
-        var s = App.Services.Settings;
-        CmbProfile.ItemsSource = s.Profiles.Select(p => $"{p.Name} ({p.ModeName})").ToList();
-        CmbProfile.SelectedIndex = s.Profiles.IndexOf(App.Services.Progress);
+        var settings = App.Services.Settings;
+        CmbProfile.ItemsSource = settings.Profiles.Select(p => $"{p.Name} ({p.ModeName})").ToList();
+        CmbProfile.SelectedIndex = settings.Profiles.IndexOf(App.Services.Progress);
         _switchingProfile = false;
 
-        var pve = App.Services.Progress.PveMode;
-        TxtModeBadge.Text = App.Services.Progress.ModeName;
-        BadgeMode.Background = new SolidColorBrush(pve
+        var progress = App.Services.Progress;
+        TxtModeBadge.Text = progress.ModeName;
+        BadgeMode.Background = new SolidColorBrush(progress.PveMode
             ? Color.FromRgb(0x2E, 0x7D, 0x32)   // PvE — зелёный
             : Color.FromRgb(0xB7, 0x4E, 0x1E)); // PvP — оранжевый
-        Title = $"Tarkov Helper — {App.Services.Progress.Name} ({App.Services.Progress.ModeName})";
-        BtnDeleteProfile.IsEnabled = s.Profiles.Count > 1;
+        Title = $"Tarkov Helper — {progress.Name} ({progress.ModeName})";
+        MenuDeleteProfile.IsEnabled = settings.Profiles.Count > 1;
 
-        TxtPlayerLevel.Text = App.Services.Progress.PlayerLevel > 0
-            ? App.Services.Progress.PlayerLevel.ToString()
-            : "";
-
-        _switchingProfile = true;
-        CmbFaction.ItemsSource = FactionOptions;
-        CmbFaction.SelectedItem = App.Services.Progress.Faction switch
-        {
-            "USEC" => "USEC",
-            "BEAR" => "BEAR",
-            _ => FactionOptions[0],
-        };
-        _switchingProfile = false;
+        // данные профиля показываем текстом: правятся они в окне редактирования
+        TxtProfileInfo.Text =
+            (progress.Faction.Length > 0 ? progress.Faction : "фракция не указана") + " · " +
+            (progress.PlayerLevel > 0 ? $"{progress.PlayerLevel} ур." : "уровень не указан");
     }
 
-    /// <summary>Первый пункт — «не указана»: тогда показываем квесты обеих фракций.</summary>
-    private static readonly List<string> FactionOptions = new() { "не указана", "USEC", "BEAR" };
-
-    /// <summary>Enter применяет уровень сразу: ждать ухода фокуса неочевидно.</summary>
-    private void OnPlayerLevelKey(object sender, System.Windows.Input.KeyEventArgs e)
+    /// <summary>Меню профиля открывается по кнопке, а не по правой клавише.</summary>
+    private void OnProfileMenuClick(object sender, RoutedEventArgs e)
     {
-        if (e.Key != System.Windows.Input.Key.Enter) return;
-        ApplyPlayerLevel();
-        e.Handled = true;
-    }
-
-    private void OnPlayerLevelChanged(object sender, RoutedEventArgs e) => ApplyPlayerLevel();
-
-    /// <summary>Уровень персонажа: по нему отсекаются квесты, до которых он не дорос.</summary>
-    private void ApplyPlayerLevel()
-    {
-        if (!IsLoaded) return;
-        var text = TxtPlayerLevel.Text.Trim();
-        var level = int.TryParse(text, out var parsed) && parsed is > 0 and <= 79 ? parsed : 0;
-        if (level == App.Services.Progress.PlayerLevel) return;
-
-        App.Services.Progress.PlayerLevel = level;
-        TxtPlayerLevel.Text = level > 0 ? level.ToString() : "";
-        App.Services.SaveProgress();   // индекс лута зависит от доступности квестов
-        ApplyQuestFilter();
-        FlashLevelSaved();
+        if (sender is not Button b || b.ContextMenu == null) return;
+        b.ContextMenu.PlacementTarget = b;
+        b.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        b.ContextMenu.IsOpen = true;
     }
 
     /// <summary>
-    /// Короткое «сохранено» рядом с полем: без подтверждения непонятно,
-    /// приняло приложение введённый уровень или нет.
+    /// Правка профиля целиком: имя, фракция, уровень. В шапке эти поля только
+    /// занимали место, а уровень полем ввода выглядел как что-то временное.
     /// </summary>
+    private void OnEditProfileClick(object sender, RoutedEventArgs e)
+    {
+        var current = App.Services.Progress;
+        var dlg = new ProfileDialog
+        {
+            Owner = this,
+            Title = "Профиль персонажа",
+            ModeEditable = false,
+            ProfileName = current.Name,
+            Faction = current.Faction,
+            Level = current.PlayerLevel,
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var settings = App.Services.Settings;
+        var renamed = !string.Equals(dlg.ProfileName, current.Name, StringComparison.Ordinal);
+        if (renamed && settings.Profiles.Any(p => p != current &&
+                string.Equals(p.Name, dlg.ProfileName, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this, "Профиль с таким именем уже есть.", "Профили",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        current.Faction = dlg.Faction;
+        current.PlayerLevel = dlg.Level;
+        if (renamed)
+        {
+            current.Name = dlg.ProfileName;
+            settings.ActiveProfile = dlg.ProfileName;
+        }
+
+        App.Services.SaveProgress();   // индекс лута зависит от фракции и уровня
+        RefreshFromServices();
+        FlashLevelSaved();
+    }
+
+    /// <summary>Короткое «сохранено» в шапке: подтверждает, что правка принята.</summary>
     private void FlashLevelSaved()
     {
         TxtLevelSaved.Visibility = Visibility.Visible;
@@ -197,16 +207,6 @@ public partial class MainWindow : Window
             TxtLevelSaved.Visibility = Visibility.Collapsed;
         };
         timer.Start();
-    }
-
-    private void OnFactionSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (!IsLoaded || _switchingProfile) return;
-        var picked = CmbFaction.SelectedItem as string ?? "";
-        App.Services.Progress.Faction = picked is "USEC" or "BEAR" ? picked : "";
-        App.Services.SaveProgress();
-        App.Services.RebuildIndex(); // список нужного лута зависит от фракции
-        ApplyQuestFilter();
     }
 
     private async void OnProfileSelected(object sender, SelectionChangedEventArgs e)
@@ -224,7 +224,12 @@ public partial class MainWindow : Window
 
     private async void OnAddProfileClick(object sender, RoutedEventArgs e)
     {
-        var dlg = new ProfileDialog { Owner = this };
+        var dlg = new ProfileDialog
+        {
+            Owner = this,
+            Title = "Новый профиль",
+            DetailsVisible = false, // фракцию и уровень зададим при редактировании
+        };
         if (dlg.ShowDialog() != true) return;
 
         var s = App.Services.Settings;
@@ -247,9 +252,11 @@ public partial class MainWindow : Window
         var dlg = new ProfileDialog
         {
             Owner = this,
+            Title = "Переименовать профиль",
             ProfileName = current.Name,
             IsPve = current.PveMode,
             ModeEditable = false, // режим менять нельзя: к нему привязан прогресс
+            DetailsVisible = false,
         };
         if (dlg.ShowDialog() != true) return;
 
@@ -657,6 +664,7 @@ public partial class MainWindow : Window
             Title = "Название квеста",
             Prompt = $"Название квеста ({row.Trader}), как в игре:",
             ModeEditable = false,
+            DetailsVisible = false,
             ProfileName = row.Name,
         };
         if (dlg.ShowDialog() != true) return;

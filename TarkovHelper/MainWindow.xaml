@@ -20,25 +20,30 @@
                 Background="#2E7D32">
           <TextBlock x:Name="TxtModeBadge" Text="PvE" FontWeight="Bold" Foreground="White"/>
         </Border>
-        <TextBlock Text="Фракция:" VerticalAlignment="Center" Margin="12,0,0,0"/>
-        <ComboBox x:Name="CmbFaction" Width="110" Margin="6,0,0,0"
-                  SelectionChanged="OnFactionSelected"
-                  ToolTip="У части квестов две версии — для USEC и для BEAR. Укажите фракцию, чтобы в списке остались только свои."/>
-        <TextBlock Text="Уровень ЧВК:" VerticalAlignment="Center" Margin="12,0,0,0"
-                   ToolTip="Уровень персонажа этого профиля. Введите число и нажмите Enter."/>
-        <TextBox x:Name="TxtPlayerLevel" Width="50" Margin="6,0,0,0" KeyDown="OnPlayerLevelKey"
-                 VerticalContentAlignment="Center" TextAlignment="Center"
-                 LostFocus="OnPlayerLevelChanged"
-                 ToolTip="Уровень персонажа этого профиля: квесты выше него считаются закрытыми. Введите число и нажмите Enter; пусто — не учитывать."/>
-        <TextBlock x:Name="TxtLevelSaved" VerticalAlignment="Center" Margin="6,0,0,0"
+
+        <!-- данные профиля только показываются; правятся в окне редактирования -->
+        <TextBlock x:Name="TxtProfileInfo" VerticalAlignment="Center" Margin="12,0,0,0"
+                   Opacity="0.85"/>
+        <TextBlock x:Name="TxtLevelSaved" VerticalAlignment="Center" Margin="8,0,0,0"
                    Foreground="#FF81C784" FontWeight="SemiBold" Visibility="Collapsed"
                    Text="сохранено"/>
-        <Button x:Name="BtnAddProfile" Content="Добавить" Width="90" Margin="12,0,0,0"
-                Click="OnAddProfileClick"/>
-        <Button x:Name="BtnRenameProfile" Content="Переименовать" Width="120" Margin="6,0,0,0"
-                Click="OnRenameProfileClick"/>
-        <Button x:Name="BtnDeleteProfile" Content="Удалить" Width="90" Margin="6,0,0,0"
-                Click="OnDeleteProfileClick"/>
+
+        <Button x:Name="BtnEditProfile" Content="Редактировать" Width="130" Margin="12,0,0,0"
+                Click="OnEditProfileClick"
+                ToolTip="Имя, фракция и уровень этого профиля"/>
+        <!-- редкие операции убраны под «⋯», чтобы шапка не пестрила кнопками -->
+        <Button x:Name="BtnProfileMenu" Content="⋯" Width="34" Margin="6,0,0,0"
+                FontWeight="Bold" Click="OnProfileMenuClick"
+                ToolTip="Добавить, переименовать или удалить профиль">
+          <Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Добавить профиль…" Click="OnAddProfileClick"/>
+              <MenuItem Header="Переименовать…" Click="OnRenameProfileClick"/>
+              <Separator/>
+              <MenuItem x:Name="MenuDeleteProfile" Header="Удалить профиль" Click="OnDeleteProfileClick"/>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
       </StackPanel>
     </Border>
 
