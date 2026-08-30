@@ -160,7 +160,11 @@ public sealed class AppServices
         {
             // «активно!» — это факт, увиденный на экране: он важнее условий
             // выдачи из базы, которые от игры отстают
-            if (issued) noted |= Progress.ActiveQuests.Add(q.Id);
+            if (issued)
+            {
+                noted |= Progress.ActiveQuests.Add(q.Id);
+                noted |= Progress.NotIssued.Remove(q.Id); // раз активен, то выдан
+            }
 
             var changed = Progress.CompletedQuests.Remove(q.Id);
             changed |= Progress.FailedQuests.Remove(q.Id); // перезапустили — снова в работе
@@ -279,7 +283,20 @@ public sealed class AppServices
     public int RememberSeenQuests(string trader, IEnumerable<Quest> shown)
     {
         if (!_walk.TryGetValue(trader, out var seen))
+        {
             _walk[trader] = seen = new HashSet<string>();
+
+            // Начался новый обход — прежние выводы «торговец не выдал» больше
+            // ничего не значат: список мог измениться, а могли и мы ошибиться,
+            // не дойдя до конца. Пусть их выставит этот обход.
+            if (Data != null)
+            {
+                var cleared = Data.Quests
+                    .Where(q => q.TraderName == trader)
+                    .Count(q => Progress.NotIssued.Remove(q.Id));
+                if (cleared > 0) SaveProgress();
+            }
+        }
         foreach (var quest in shown)
             if (quest.TraderName == trader) seen.Add(quest.Id);
         return seen.Count;

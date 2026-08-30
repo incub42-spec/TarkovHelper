@@ -258,6 +258,8 @@ public sealed class AppSettings
     public uint HideoutHotkey { get; set; } = 0x79;
     /// <summary>Клавиша сканирования списка квестов у торговца. F11 по умолчанию.</summary>
     public uint QuestHotkey { get; set; } = 0x7A;
+    /// <summary>Раскладывать квесты по разделам торговца, как это делает игра.</summary>
+    public bool GroupQuests { get; set; } = true;
 
     /// <summary>Имя активного профиля.</summary>
     public string ActiveProfile { get; set; } = "";

@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 
         RefreshProfiles();
         ChkBarters.IsChecked = s.Settings.ShowBarterItems;
+        ChkGroupQuests.IsChecked = s.Settings.GroupQuests;
         ChkScanRegion.IsChecked = s.Settings.ShowScanRegion;
         TxtGamePath.Text = s.Settings.GamePath ?? "";
         TxtDataStatus.Text = s.DataStatus;
@@ -616,7 +617,11 @@ public partial class MainWindow : Window
 
     private void OnGroupQuestsChanged(object sender, RoutedEventArgs e)
     {
-        if (IsLoaded) ApplyQuestGrouping();
+        if (!IsLoaded) return;
+        // выбор запоминаем: заново ставить галочку при каждом запуске незачем
+        App.Services.Settings.GroupQuests = ChkGroupQuests.IsChecked == true;
+        Services.DataStore.SaveSettings(App.Services.Settings);
+        ApplyQuestGrouping();
     }
 
     /// <summary>Откат массовой отметки: ошибиться сканированием списка легко.</summary>
