@@ -311,10 +311,10 @@ public partial class OverlayWindow : Window
             // по «новое!» цепочку не достраиваем: заблокированный квест виден
             // в списке, а предыдущие в его цепочке ещё не сданы
             // а активный квест не сдан — снимаем отметку, если она была ошибочной.
-            // «новое!» тоже означает «не сдан», но доступность из него не следует:
-            // такой квест бывает и под замком
+            // «новое!» так читать нельзя: это метка непросмотренного изменения,
+            // и висит она в том числе на только что завершённом задании —
+            // проверено на «Профпригодности. Часть 2» у Рефа
             var cleared = App.Services.UnmarkQuestsCompleted(result.Active);
-            cleared.AddRange(App.Services.UnmarkQuestsCompleted(result.New, issued: false));
             var lines = new List<(string, System.Windows.Media.Brush)>
             {
                 added.Count > 0
@@ -341,7 +341,7 @@ public partial class OverlayWindow : Window
             if (result.Active.Count > cleared.Count)
                 lines.Add(($"Активных пропущено: {result.Active.Count - cleared.Count}", MutedBrush));
             if (result.New.Count > 0)
-                lines.Add(($"Новых (ещё не взятых) в кадре: {result.New.Count}", MutedBrush));
+                lines.Add(($"С пометкой «новое!» пропущено: {result.New.Count}", MutedBrush));
             if (result.Unknown.Count > 0)
                 lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
             // Список без завершённых — это ровно доступные квесты торговца.
