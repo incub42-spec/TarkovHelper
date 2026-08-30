@@ -31,6 +31,14 @@ public sealed class NeededItemsIndex
             needs.Needs.Add(need);
         }
 
+        // «Сейчас» — это задания, которые торговец уже выдал: в игре они помечены
+        // «активно!», и список активных снимается сканированием. Того, что квест
+        // проходит по требованиям, мало: с патча 1.1.0 задания приходят пачками
+        // по два-четыре, и середина цепочки может ждать своей очереди неделями.
+        // Пока сканирования не было, судим по требованиям — иначе на свежем
+        // профиле «нужно сейчас» не наберётся ничего.
+        var knowsActive = progress.ActiveQuests.Count > 0;
+
         // Квесты: все невыполненные (в том числе ещё не открытые — лут собираем заранее)
         foreach (var quest in data.Quests)
         {
@@ -42,7 +50,9 @@ public sealed class NeededItemsIndex
             // Квест из середины цепочки торговец пока не выдаст, значит и лут
             // для него нужен не сегодня. Помечаем «позже» — так же, как уровни
             // убежища, до которых очередь ещё не дошла.
-            var questAvailable = progress.IsAvailable(quest);
+            var questAvailable = knowsActive
+                ? progress.ActiveQuests.Contains(quest.Id)
+                : progress.IsAvailable(quest);
             var objIndex = 0;
             foreach (var obj in quest.ItemObjectives)
             {
