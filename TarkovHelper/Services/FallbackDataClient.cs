@@ -542,15 +542,29 @@ public static partial class FallbackDataClient
         IReadOnlyDictionary<string, string> map)
     {
         var index = new Dictionary<string, List<(int, string)>>();
-        foreach (var (key, ru) in map)
+        void Add(string family, int part, string key)
         {
-            var m = RuPartRegex().Match(ru);
-            if (!m.Success || !int.TryParse(m.Groups[2].Value, out var part)) continue;
-            var family = FoldName(m.Groups[1].Value);
-            if (family.Length == 0) continue;
+            if (family.Length == 0) return;
             if (!index.TryGetValue(family, out var list))
                 index[family] = list = new List<(int, string)>();
             list.Add((part, key));
+        }
+
+        foreach (var (key, ru) in map)
+        {
+            var m = RuPartRegex().Match(ru);
+            if (m.Success && int.TryParse(m.Groups[2].Value, out var part))
+            {
+                Add(FoldName(m.Groups[1].Value), part, key);
+                continue;
+            }
+
+            // Первая часть цепочки на вики бывает уже без номера: статья
+            // «Database - Part 1» называется просто «Картотека». По ней тоже
+            // видно, что английское имя семейства — «Database».
+            var suffix = " - Part 1";
+            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                Add(FoldName(ru), 1, key);
         }
         return index;
     }
@@ -616,6 +630,9 @@ public static partial class FallbackDataClient
         ["Demonstration Model"] = "Демонстрационный экземпляр",
         // седьмой части «Путевки в санаторий» на вики нет под новым именем
         ["Chemical Experiments"] = "Химические эксперименты",
+        // на вики ссылки перепутаны местами: статья «Pathfinder» отдаёт
+        // «Ночь распродаж», хотя в игре этот квест зовётся «Следопыт»
+        ["Pathfinder"] = "Следопыт",
     };
 
     /// <summary>

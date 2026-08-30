@@ -273,6 +273,8 @@ public sealed class AppServices
 
             if (Progress.CompletedQuests.Contains(quest.Id)) continue;
             if (!Progress.Fits(quest.Faction)) continue;
+            // квест, который сканирование видело активным, торговец точно выдал
+            if (Progress.ActiveQuests.Contains(quest.Id)) continue;
             if (!Progress.IsAvailable(quest)) continue;
 
             notIssued.Add(quest);
