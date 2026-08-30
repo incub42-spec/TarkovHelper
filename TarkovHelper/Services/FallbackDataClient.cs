@@ -312,6 +312,7 @@ public static partial class FallbackDataClient
             // под «<id> description», цель — под собственным id. Без локали
             // остаются пустыми, и вкладка просто не покажет описание.
             quest.Description = LocaleStr(sptRu, $"{id} description") ?? "";
+            quest.MapName = MapName(sptRu, Str(t, "map"));
             if (t.TryGetProperty("objectives", out var allObjs) && allObjs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var o in allObjs.EnumerateArray())
@@ -649,6 +650,25 @@ public static partial class FallbackDataClient
         normalized.Length == 0
             ? "Станция"
             : char.ToUpperInvariant(normalized[0]) + normalized[1..].Replace('-', ' ');
+
+    /// <summary>
+    /// Локации, которых нет в локали SPT: они появились после марта 2025.
+    /// Названия — из справочника карт tarkov.dev.
+    /// </summary>
+    private static readonly Dictionary<string, string> NewMaps = new()
+    {
+        ["65cc8f81a9aac3e77d0cfd3e"] = "Терминал",
+        ["6733700029c367a3d40b02af"] = "Лабиринт",
+        ["69af492a4819ea4ba10a69c5"] = "Ледокол",
+    };
+
+    /// <summary>Русское название локации задания; пусто — «любая локация».</summary>
+    private static string MapName(JsonElement locale, string mapId)
+    {
+        if (mapId.Length == 0) return "";
+        if (LocaleStr(locale, $"{mapId} Name") is { Length: > 0 } name) return name;
+        return NewMaps.TryGetValue(mapId, out var known) ? known : "";
+    }
 
     /// <summary>Чем цель является, когда её текста в локали нет.</summary>
     private static string ObjectiveKind(string type) => type switch

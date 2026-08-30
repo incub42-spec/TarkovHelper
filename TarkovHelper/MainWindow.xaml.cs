@@ -479,6 +479,36 @@ public partial class MainWindow : Window
         ApplyQuestFilter();
     }
 
+    /// <summary>Выбранная локация; пусто — все.</summary>
+    private string _mapFilter = "";
+    private const string AllMaps = "Все локации";
+    private const string AnyMap = "Любая локация";
+
+    private void OnQuestMapChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || CmbQuestMap.SelectedItem is not string choice) return;
+        _mapFilter = choice == AllMaps ? "" : choice;
+        ApplyQuestFilter();
+    }
+
+    /// <summary>Список локаций собираем из самих квестов: лишних там не будет.</summary>
+    private void RebuildMapFilter()
+    {
+        var maps = _allQuests
+            .Where(r => r.Map.Length > 0)
+            .Select(r => r.Map)
+            .Distinct()
+            .OrderBy(m => m, StringComparer.CurrentCulture)
+            .ToList();
+
+        var items = new List<string> { AllMaps, AnyMap };
+        items.AddRange(maps);
+        if (CmbQuestMap.ItemsSource is List<string> old && old.SequenceEqual(items)) return;
+
+        CmbQuestMap.ItemsSource = items;
+        CmbQuestMap.SelectedItem = items.Contains(_mapFilter) ? _mapFilter : AllMaps;
+    }
+
     /// <summary>Выбранная вкладка торговца; пусто — все торговцы.</summary>
     private string _traderTab = "";
     private const string AllTraders = "Все";
@@ -529,12 +559,17 @@ public partial class MainWindow : Window
     private void ApplyQuestFilter()
     {
         RebuildTraderTabs();
+        RebuildMapFilter();
 
         // в основном окне только то, чем можно заняться сейчас; полный список — по кнопке
         IEnumerable<QuestRow> rows = _allQuests.Where(r => r.Status == "доступен");
 
         if (_traderTab.Length > 0)
             rows = rows.Where(r => r.Trader == _traderTab);
+
+        // «Любая локация» — это задания без привязки к карте
+        if (_mapFilter == AnyMap) rows = rows.Where(r => r.Map.Length == 0);
+        else if (_mapFilter.Length > 0) rows = rows.Where(r => r.Map == _mapFilter);
         // квесты чужой фракции игроку не выдадут — прячем, если фракция указана
         rows = rows.Where(r => App.Services.Progress.Fits(r.Faction));
 
@@ -1225,6 +1260,9 @@ public partial class MainWindow : Window
 
         /// <summary>Раздел, в котором квест лежит у торговца в игре.</summary>
         public string Section => App.Services.Progress.SectionName(_quest);
+
+        /// <summary>Локация задания; пусто — подойдёт любая.</summary>
+        public string Map => _quest.MapName;
 
         /// <summary>Место квеста в цепочке: сдан, можно брать или ещё закрыт.</summary>
         public string Status => IsCompleted

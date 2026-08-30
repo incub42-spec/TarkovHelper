@@ -124,6 +124,13 @@
                     <TextBlock x:Name="TxtQuestKnowledge" TextWrapping="Wrap" Opacity="0.7"
                                Margin="0,4,0,0"/>
                 </StackPanel>
+                <!-- по локации видно, что можно закрыть за один рейд -->
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBlock Text="Локация:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="CmbQuestMap" Width="200" HorizontalAlignment="Left"
+                              SelectionChanged="OnQuestMapChanged"
+                              ToolTip="Оставить только задания этой локации"/>
+                </DockPanel>
                 <!-- та же галочка, что в игре: разложить по уровням лояльности -->
                 <CheckBox x:Name="ChkGroupQuests" DockPanel.Dock="Top" Margin="0,0,0,8"
                           Content="Группировать по разделам, как в игре"
@@ -210,6 +217,8 @@
                                  повторять его в каждой строке незачем -->
                             <GridViewColumn x:Name="ColQuestTrader" Header="Торговец" Width="110"
                                             DisplayMemberBinding="{Binding Trader}"/>
+                            <GridViewColumn Header="Локация" Width="130"
+                                            DisplayMemberBinding="{Binding Map}"/>
                             <GridViewColumn Header="Квест" Width="330"
                                             DisplayMemberBinding="{Binding Name}"/>
                             <GridViewColumn Header="Фракция" Width="70"

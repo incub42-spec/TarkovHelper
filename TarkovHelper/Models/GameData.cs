@@ -80,6 +80,11 @@ public sealed class Quest
     /// Таких условий 27, и без них список расходится с игрой.
     /// </summary>
     public List<QuestPrerequisite> Prerequisites { get; set; } = new();
+    /// <summary>
+    /// Локация задания: по ней видно, что можно закрыть за один рейд.
+    /// Пусто — «любая локация», так у половины заданий.
+    /// </summary>
+    public string MapName { get; set; } = "";
 
     /// <summary>
     /// Условия по торговцам: уровень лояльности или репутация. Именно из-за них
@@ -187,7 +192,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 17;
+    public const int CurrentSchema = 18;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }
