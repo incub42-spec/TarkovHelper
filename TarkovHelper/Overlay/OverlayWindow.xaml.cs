@@ -278,7 +278,7 @@ public partial class OverlayWindow : Window
             var result = await Services.QuestScanner.ScanAsync(data, App.Services.Progress, pt);
             FlashScanRegion(result.Area.X, result.Area.Y, result.Area.W, result.Area.H);
 
-            if (result.Matched.Count == 0)
+            if (result.Total == 0)
             {
                 ShowLines(pt, ("✕ Названий квестов в кадре нет", FailBrush),
                     ($"Прочитано строк: {result.LinesRead}. Откройте у торговца вкладку «Задания» " +
@@ -286,17 +286,23 @@ public partial class OverlayWindow : Window
                 return;
             }
 
-            var added = App.Services.MarkQuestsCompleted(result.Matched);
+            var added = App.Services.MarkQuestsCompleted(result.Completed);
             var lines = new List<(string, System.Windows.Media.Brush)>
             {
                 added.Count > 0
                     ? ($"✓ Отмечено выполненными: {added.Count}", OkBrush)
-                    : ($"Все {result.Matched.Count} уже были отмечены", MutedBrush),
+                    : ($"Новых отметок нет (завершённых в кадре: {result.Completed.Count})", MutedBrush),
             };
             foreach (var q in added.Take(6))
                 lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
             if (added.Count > 6)
                 lines.Add(($"…и ещё {added.Count - 6}", MutedBrush));
+
+            // активные не трогаем: они в работе, а не сданы
+            if (result.Active.Count > 0)
+                lines.Add(($"Активных пропущено: {result.Active.Count}", MutedBrush));
+            if (result.Unknown.Count > 0)
+                lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
             if (added.Count > 0)
                 lines.Add(("Откатить можно в приложении, вкладка «Квесты»", MutedBrush));
             ShowLines(pt, lines.ToArray());
