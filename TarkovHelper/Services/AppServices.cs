@@ -123,7 +123,7 @@ public sealed class AppServices
     public List<Quest> LastQuestScan { get; private set; } = new();
 
     /// <summary>Отмечает квесты выполненными; возвращает только реально добавленные.</summary>
-    public List<Quest> MarkQuestsCompleted(IEnumerable<Quest> quests)
+    public List<Quest> MarkQuestsCompleted(IEnumerable<Quest> quests, bool continueScan = false)
     {
         var added = quests.Where(q => Progress.CompletedQuests.Add(q.Id)).ToList();
         foreach (var q in added)
@@ -131,7 +131,7 @@ public sealed class AppServices
 
         if (added.Count > 0)
         {
-            LastQuestScan = added;
+            LastQuestScan = continueScan ? LastQuestScan.Concat(added).ToList() : added;
             SaveProgress();
         }
         return added;
@@ -208,6 +208,25 @@ public sealed class AppServices
         var count = quests.Count(q => Progress.FailedQuests.Add(q.Id));
         if (count > 0) SaveProgress();
         return count;
+    }
+
+    /// <summary>
+    /// Квесты торговца, которые программа считает доступными, а игра в списке
+    /// не показала. Без галочки «Завершенные» игра показывает ровно то, что
+    /// выдано или доступно, — значит недостающие уже сданы. Так закрывается
+    /// главный пробел: историю сдачи игра на диске не хранит, а прокручивать
+    /// список завершённых под сканером долго.
+    /// </summary>
+    public List<Quest> AvailableButNotShown(string trader, IEnumerable<Quest> shown)
+    {
+        if (Data == null) return new List<Quest>();
+        var seen = shown.Select(q => q.Id).ToHashSet();
+        return Data.Quests
+            .Where(q => q.TraderName == trader &&
+                        !seen.Contains(q.Id) &&
+                        Progress.Fits(q.Faction) &&
+                        Progress.IsAvailable(q))
+            .ToList();
     }
 
     /// <summary>Откат последнего сканирования списка квестов.</summary>

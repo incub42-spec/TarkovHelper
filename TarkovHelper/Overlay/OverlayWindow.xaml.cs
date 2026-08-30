@@ -19,6 +19,9 @@ public partial class OverlayWindow : Window
     private const int HotkeyId = 0x5454;        // F9 — предмет под курсором
     private const int HideoutHotkeyId = 0x5455; // F10 — экран станции убежища
     private const int QuestHotkeyId = 0x5456;   // F11 — список квестов у торговца
+    // Shift к той же клавише: сверка списка с игрой отмечает пачку квестов
+    // сданными, поэтому отдельным жестом, а не сама собой
+    private const int QuestSyncHotkeyId = 0x5457;
 
     private static readonly Brush TitleBrush = new SolidColorBrush(Color.FromRgb(0xEC, 0xEF, 0xF1));
     private static readonly Brush QuestBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB7, 0x4D));
@@ -110,6 +113,7 @@ public partial class OverlayWindow : Window
         UnregisterHotKey(hwnd, HotkeyId);
         UnregisterHotKey(hwnd, HideoutHotkeyId);
         UnregisterHotKey(hwnd, QuestHotkeyId);
+        UnregisterHotKey(hwnd, QuestSyncHotkeyId);
 
         // кнопки мыши регистрировать не нужно — они приходят через Raw Input
         var p = App.Services.Settings;
@@ -119,6 +123,8 @@ public partial class OverlayWindow : Window
             || RegisterHotKey(hwnd, HideoutHotkeyId, 0, p.HideoutHotkey);
         QuestHotkeyRegistered = Services.HotkeyNames.IsMouseButton(p.QuestHotkey)
             || RegisterHotKey(hwnd, QuestHotkeyId, 0, p.QuestHotkey);
+        if (!Services.HotkeyNames.IsMouseButton(p.QuestHotkey))
+            RegisterHotKey(hwnd, QuestSyncHotkeyId, MOD_SHIFT, p.QuestHotkey);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -129,6 +135,7 @@ public partial class OverlayWindow : Window
             UnregisterHotKey(hwnd, HotkeyId);
             UnregisterHotKey(hwnd, HideoutHotkeyId);
             UnregisterHotKey(hwnd, QuestHotkeyId);
+            UnregisterHotKey(hwnd, QuestSyncHotkeyId);
         }
         base.OnClosed(e);
     }
@@ -155,7 +162,11 @@ public partial class OverlayWindow : Window
                     break;
                 case QuestHotkeyId:
                     handled = true;
-                    _ = ScanQuestsAsync();
+                    _ = ScanQuestsAsync(reconcile: false);
+                    break;
+                case QuestSyncHotkeyId:
+                    handled = true;
+                    _ = ScanQuestsAsync(reconcile: true);
                     break;
             }
         }
@@ -259,7 +270,7 @@ public partial class OverlayWindow : Window
     /// Игра нигде не хранит на диске, что сдано, а список на экране —
     /// единственный полный источник. Отметку можно откатить в приложении.
     /// </summary>
-    private async Task ScanQuestsAsync()
+    private async Task ScanQuestsAsync(bool reconcile)
     {
         if (_scanning) return;
         _scanning = true;
@@ -321,7 +332,41 @@ public partial class OverlayWindow : Window
                 lines.Add(($"Активных пропущено: {result.Active.Count - cleared.Count}", MutedBrush));
             if (result.Unknown.Count > 0)
                 lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
-            if (added.Count + implied.Count > 0)
+            // Список без завершённых — это ровно доступные квесты торговца.
+            // Всё, что мы считаем доступным, но игра не показала, уже сдано.
+            if (result.IsAvailableList && result.Trader is { } trader)
+            {
+                var missing = App.Services.AvailableButNotShown(trader, result.Seen);
+                if (missing.Count == 0)
+                {
+                    lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
+                }
+                else if (reconcile && !result.FullyRead)
+                {
+                    lines.Add(("✕ Часть строк не распозналась — сверка отменена", FailBrush));
+                    lines.Add(($"Статусов в кадре: {result.StatusMarks}, названий узнано: {result.Total}",
+                        MutedBrush));
+                }
+                else if (reconcile)
+                {
+                    App.Services.MarkQuestsCompleted(missing, continueScan: true);
+                    lines.Add(($"✓ {trader}: отмечено сданными {missing.Count} — их нет в списке игры",
+                        OkBrush));
+                    foreach (var q in missing.Take(6))
+                        lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
+                    if (missing.Count > 6)
+                        lines.Add(($"…и ещё {missing.Count - 6}", MutedBrush));
+                }
+                else
+                {
+                    lines.Add(($"{trader}: у нас доступных на {missing.Count} больше, чем в игре",
+                        MutedBrush));
+                    lines.Add(($"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)} — " +
+                               "отметить их сданными (список должен быть виден целиком)", MutedBrush));
+                }
+            }
+
+            if (added.Count + implied.Count > 0 || reconcile)
                 lines.Add(("Откатить можно в приложении, вкладка «Квесты»", MutedBrush));
             ShowLines(pt, lines.ToArray());
         }
@@ -750,7 +795,7 @@ public partial class OverlayWindow : Window
         var p = App.Services.Settings;
         if (p.ItemHotkey == pressed) _ = ScanAsync();
         else if (p.HideoutHotkey == pressed) _ = ScanHideoutAsync();
-        else if (p.QuestHotkey == pressed) _ = ScanQuestsAsync();
+        else if (p.QuestHotkey == pressed) _ = ScanQuestsAsync(reconcile: false);
     }
 
     /// <summary>Скрывает панель и даёт композитору время убрать её с экрана перед снимком.</summary>

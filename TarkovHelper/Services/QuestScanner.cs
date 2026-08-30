@@ -21,9 +21,31 @@ internal static partial class QuestScanner
     /// </summary>
     public sealed record Result(
         List<Quest> Completed, List<Quest> Active, List<Quest> Failed, List<Quest> Unknown,
-        Region Area, int LinesRead)
+        Region Area, int LinesRead, int StatusMarks)
     {
         public int Total => Completed.Count + Active.Count + Failed.Count + Unknown.Count;
+
+        /// <summary>Все узнанные квесты кадра.</summary>
+        public IEnumerable<Quest> Seen => Completed.Concat(Active).Concat(Failed).Concat(Unknown);
+
+        /// <summary>Чей это список: торговец, которому принадлежит большинство строк.</summary>
+        public string? Trader => Seen
+            .GroupBy(q => q.TraderName)
+            .OrderByDescending(g => g.Count())
+            .FirstOrDefault()?.Key;
+
+        /// <summary>
+        /// В кадре список без завершённых — значит игра показывает ровно те
+        /// квесты, которые сейчас выданы или доступны. Тогда отсутствие
+        /// квеста в кадре само по себе информация.
+        /// </summary>
+        public bool IsAvailableList => Completed.Count == 0 && Total >= 3;
+
+        /// <summary>
+        /// Все строки со статусом узнаны по названию. Если нет — часть списка
+        /// не распозналась, и делать выводы из отсутствия квеста в кадре нельзя.
+        /// </summary>
+        public bool FullyRead => Total >= StatusMarks;
     }
 
     [GeneratedRegex("(?i)заверш|выполн|complet")]
@@ -156,7 +178,8 @@ internal static partial class QuestScanner
                     $"строк={lines.Count} завершено={completed.Count} активных={active.Count} " +
                     $"без статуса={unknown.Count}\n" + debug);
 
-        return new Result(completed, active, failed, unknown, new Region(x, y, w, h), lines.Count);
+        return new Result(completed, active, failed, unknown, new Region(x, y, w, h), lines.Count,
+            doneMarks.Count + activeMarks.Count + failedMarks.Count);
     }
 
     /// <summary>

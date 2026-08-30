@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace TarkovHelper.Interop;
 
@@ -154,6 +154,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    /// <summary>Модификатор Shift для RegisterHotKey.</summary>
+    public const uint MOD_SHIFT = 0x0004;
 
     [DllImport("user32.dll")]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
