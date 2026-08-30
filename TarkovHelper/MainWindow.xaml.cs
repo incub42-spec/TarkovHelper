@@ -177,6 +177,26 @@ public partial class MainWindow : Window
         TxtPlayerLevel.Text = level > 0 ? level.ToString() : "";
         App.Services.SaveProgress();   // индекс лута зависит от доступности квестов
         ApplyQuestFilter();
+        FlashLevelSaved();
+    }
+
+    /// <summary>
+    /// Короткое «сохранено» рядом с полем: без подтверждения непонятно,
+    /// приняло приложение введённый уровень или нет.
+    /// </summary>
+    private void FlashLevelSaved()
+    {
+        TxtLevelSaved.Visibility = Visibility.Visible;
+        var timer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(2),
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            TxtLevelSaved.Visibility = Visibility.Collapsed;
+        };
+        timer.Start();
     }
 
     private void OnFactionSelected(object sender, SelectionChangedEventArgs e)
