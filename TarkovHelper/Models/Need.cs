@@ -21,6 +21,13 @@ public sealed class Need
     /// поэтому часть предметов нужна не сегодня, а через несколько построек.
     /// </summary>
     public bool Available { get; set; } = true;
+    /// <summary>
+    /// Сколько предметов подходят под эту цель. «Скавенжер» просит 15 наушников
+    /// любых из 23 моделей — значит пятнадцать штук всего, а не по пятнадцать
+    /// каждой. Ключ группы общий у всех вариантов одной цели.
+    /// </summary>
+    public int Options { get; set; } = 1;
+    public string GroupKey { get; set; } = "";
 }
 
 /// <summary>Агрегированные потребности по одному предмету.</summary>
@@ -39,5 +46,11 @@ public sealed class ItemNeeds
     public int HideoutNowCount =>
         Needs.Where(n => n.Kind == NeedKind.Hideout && n.Available).Sum(n => n.Count);
     public int BarterUses => Needs.Count(n => n.Kind == NeedKind.Barter);
+
+    /// <summary>Цели, где подходит несколько предметов: считать их надо вместе.</summary>
+    public IEnumerable<Need> Shared => Needs.Where(n => n.Options > 1 && n.GroupKey.Length > 0);
+
+    /// <summary>Из скольких вариантов выбирается предмет; 1 — только он сам.</summary>
+    public int Options => Needs.Count == 0 ? 1 : Needs.Max(n => n.Options);
     public bool NeededForQuestOrHideout => Needs.Any(n => n.Kind != NeedKind.Barter);
 }

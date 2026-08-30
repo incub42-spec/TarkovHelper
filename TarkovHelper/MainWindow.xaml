@@ -280,8 +280,8 @@
                         <GridView>
                             <GridViewColumn Header="Предмет" Width="360"
                                             DisplayMemberBinding="{Binding Name}"/>
-                            <GridViewColumn Header="Нужно" Width="80"
-                                            DisplayMemberBinding="{Binding Need}"/>
+                            <GridViewColumn Header="Нужно" Width="140"
+                                            DisplayMemberBinding="{Binding NeedText}"/>
                             <GridViewColumn Header="Есть" Width="150">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>

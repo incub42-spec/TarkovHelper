@@ -10,6 +10,9 @@ public sealed class NeededItemsIndex
 {
     public Dictionary<string, ItemNeeds> ByItemId { get; } = new();
 
+    /// <summary>Ключ цели → предметы, которые под неё подходят.</summary>
+    public Dictionary<string, List<string>> GroupItems { get; } = new();
+
     public ItemNeeds? Get(string itemId) => ByItemId.TryGetValue(itemId, out var n) ? n : null;
 
     public static NeededItemsIndex Build(GameData data, Progress progress)
@@ -40,8 +43,15 @@ public sealed class NeededItemsIndex
             // для него нужен не сегодня. Помечаем «позже» — так же, как уровни
             // убежища, до которых очередь ещё не дошла.
             var questAvailable = progress.IsAvailable(quest);
+            var objIndex = 0;
             foreach (var obj in quest.ItemObjectives)
             {
+                // У цели бывает список подходящих предметов: нужно столько штук
+                // всего, а не столько каждого. Помечаем их общим ключом, чтобы
+                // остаток считался по всей группе сразу.
+                var group = obj.ItemIds.Count > 1 ? $"{quest.Id}#{objIndex}" : "";
+                objIndex++;
+
                 foreach (var itemId in obj.ItemIds)
                 {
                     Add(itemId, new Need
@@ -52,7 +62,11 @@ public sealed class NeededItemsIndex
                         Count = obj.Count,
                         FoundInRaid = obj.FoundInRaid,
                         Available = questAvailable,
+                        Options = obj.ItemIds.Count,
+                        GroupKey = group,
                     });
+
+                    if (group.Length > 0) index.GroupItems.TryAdd(group, obj.ItemIds);
                 }
             }
         }

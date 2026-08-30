@@ -1200,6 +1200,8 @@ public partial class MainWindow : Window
             ItemId = needs.Item.Id;
             Name = needs.Item.Name;
             Need = needs.QuestCount + needs.HideoutCount;
+            Options = needs.Options;
+            NeedText = Options > 1 ? $"{Need} (любой из {Options})" : Need.ToString();
             Sources = string.Join(";  ", needs.Needs
                 .Where(x => x.Kind != NeedKind.Barter)
                 .Select(x => $"{x.Source} ×{x.Count}"));
@@ -1210,9 +1212,38 @@ public partial class MainWindow : Window
         public int Need { get; }
         public string Sources { get; }
 
+        public int Options { get; }
+        public string NeedText { get; }
+
         public int Have => App.Services.Progress.InStash(ItemId);
-        public int Left => Math.Max(0, Need - Have);
+        public int Left => LeftToFind(_needs);
         public Brush LeftBrush => Left == 0 ? CheckedBrush : TitleTextBrush;
+    }
+
+    /// <summary>
+    /// Сколько ещё нужно найти. У целей, где подходит несколько предметов,
+    /// считаем по всей группе: пятнадцать наушников любых моделей — это
+    /// пятнадцать штук всего, и накопленные разные модели складываются.
+    /// </summary>
+    private static int LeftToFind(ItemNeeds needs)
+    {
+        var progress = App.Services.Progress;
+        var index = App.Services.Index;
+
+        var left = 0;
+        foreach (var group in needs.Needs.Where(n => n.Kind != NeedKind.Barter)
+                     .GroupBy(n => n.GroupKey))
+        {
+            var count = group.Sum(n => n.Count);
+            var have = group.Key.Length > 0 &&
+                       index != null &&
+                       index.GroupItems.TryGetValue(group.Key, out var ids)
+                ? ids.Sum(progress.InStash)
+                : progress.InStash(needs.Item.Id);
+
+            left += Math.Max(0, count - have);
+        }
+        return left;
     }
 
     private List<StashRow> _stashRows = new();
@@ -1323,10 +1354,14 @@ public partial class MainWindow : Window
             ItemId = n.Item.Id;
             Have = App.Services.Progress.InStash(n.Item.Id);
             var need = n.QuestCount + n.HideoutCount;
-            Left = Math.Max(0, need - Have);
+            Left = LeftToFind(n);
             HaveText = Have > 0 ? Have.ToString() : "";
             LeftText = need > 0 ? Left.ToString() : "";
             Enough = need > 0 && Left == 0;
+
+            // «×15 из 23» — пятнадцать штук любых из двадцати трёх моделей
+            if (n.Options > 1 && QuestText.Length > 0)
+                QuestText += $" из {n.Options}";
         }
 
         public string ItemId { get; }
