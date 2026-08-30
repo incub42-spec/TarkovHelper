@@ -564,12 +564,13 @@ public static partial class FallbackDataClient
                 continue;
             }
 
-            // Первая часть цепочки на вики бывает уже без номера: статья
-            // «Database - Part 1» называется просто «Картотека». По ней тоже
-            // видно, что английское имя семейства — «Database».
-            var suffix = " - Part 1";
-            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                Add(FoldName(ru), 1, key);
+            // Часть цепочки на вики бывает уже переименована и номера не
+            // содержит: «Database - Part 1» называется просто «Картотека», а
+            // «Developer's Secrets - Part 2» — «Секрет успеваемости». Номер
+            // тогда берём из ключа: он и есть источник нумерации.
+            var dash = key.LastIndexOf(" - Part ", StringComparison.OrdinalIgnoreCase);
+            if (dash > 0 && int.TryParse(key[(dash + 8)..].Trim(), out var keyPart))
+                Add(FoldName(ru), keyPart, key);
         }
         return index;
     }

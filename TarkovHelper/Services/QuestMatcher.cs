@@ -412,9 +412,35 @@ internal static partial class QuestMatcher
     private static double Score(string text, Quest q, Progress progress, bool stripPart = false)
     {
         var score = 0.0;
-        foreach (var name in Names(q, progress))
-            score = Math.Max(score, ItemMatcher.Similarity(text, stripPart ? WithoutPart(name) : name));
+        foreach (var raw in Names(q, progress))
+        {
+            var name = stripPart ? WithoutPart(raw) : raw;
+            score = Math.Max(score, ItemMatcher.Similarity(text, name));
+            // «Оружейник. АКС-74Н» против «Оружейник. AKS-74N»: свёртка похожих
+            // букв тут бессильна — кириллическая «С» похожа на «C», а означает
+            // «S». Сравниваем ещё и в транслитерации, обе стороны одинаково.
+            score = Math.Max(score, ItemMatcher.Similarity(Translit(text), Translit(name)));
+        }
         return score;
+    }
+
+    /// <summary>Кириллица латиницей по звучанию: «АКС-74Н» → «aks-74n».</summary>
+    private static string Translit(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (var c in s.ToLowerInvariant())
+            sb.Append(c switch
+            {
+                'а' => "a", 'б' => "b", 'в' => "v", 'г' => "g", 'д' => "d",
+                'е' or 'ё' or 'э' => "e", 'ж' => "zh", 'з' => "z", 'и' or 'й' => "i",
+                'к' => "k", 'л' => "l", 'м' => "m", 'н' => "n", 'о' => "o",
+                'п' => "p", 'р' => "r", 'с' => "s", 'т' => "t", 'у' => "u",
+                'ф' => "f", 'х' => "h", 'ц' => "c", 'ч' => "ch", 'ш' => "sh",
+                'щ' => "sch", 'ы' => "y", 'ю' => "yu", 'я' => "ya",
+                'ъ' or 'ь' => "",
+                _ => c.ToString(),
+            });
+        return sb.ToString();
     }
 
     /// <summary>
