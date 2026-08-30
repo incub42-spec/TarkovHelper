@@ -327,10 +327,14 @@ public partial class OverlayWindow : Window
             return;
         }
 
-        foreach (var q in quests.Take(6))
+        // Прятать одну строку за «…и ещё 1» глупо: она занимает столько же
+        // места, сколько сама пометка. Сворачиваем, только если скрывается
+        // хотя бы пара.
+        var shownQuests = Fit(quests.Count, 10);
+        foreach (var q in quests.Take(shownQuests))
             lines.Add(($"● {q.TraderName}: {progress.NameOf(q)}", QuestBrush));
-        if (quests.Count > 6)
-            lines.Add(($"…и ещё {quests.Count - 6}", MutedBrush));
+        if (quests.Count > shownQuests)
+            lines.Add(($"…и ещё {quests.Count - shownQuests}", MutedBrush));
 
         // что собрать именно здесь: предметы этих заданий, которых не хватает
         var wanted = new List<string>();
@@ -355,9 +359,14 @@ public partial class OverlayWindow : Window
 
         if (wanted.Count > 0)
         {
-            lines.Add(($"Собрать: {wanted.Count}", MutedBrush));
-            foreach (var w in wanted.Distinct().Take(6))
+            var list = wanted.Distinct().ToList();
+            lines.Add(($"Собрать: {list.Count}", MutedBrush));
+
+            var shownItems = Fit(list.Count, 8);
+            foreach (var w in list.Take(shownItems))
                 lines.Add(($"○ {w}", TitleBrush));
+            if (list.Count > shownItems)
+                lines.Add(($"…и ещё {list.Count - shownItems}", MutedBrush));
         }
 
         // ключи забывают чаще всего — без них вылазка впустую
@@ -371,12 +380,22 @@ public partial class OverlayWindow : Window
         if (keys.Count > 0)
         {
             lines.Add(($"Взять ключи: {keys.Count}", FailBrush));
-            foreach (var k in keys.Take(5))
+
+            var shownKeys = Fit(keys.Count, 6);
+            foreach (var k in keys.Take(shownKeys))
                 lines.Add(($"🔑 {k}", MutedBrush));
+            if (keys.Count > shownKeys)
+                lines.Add(($"…и ещё {keys.Count - shownKeys}", MutedBrush));
         }
 
         ShowLines(pt, lines.ToArray());
     }
+
+    /// <summary>
+    /// Сколько строк показать: при превышении лимита на одну показываем и её —
+    /// пометка «…и ещё 1» занимает ту же строку, что и сама запись.
+    /// </summary>
+    private static int Fit(int total, int limit) => total <= limit + 1 ? total : limit;
 
     private async Task ScanQuestsAsync(bool reconcile)
     {

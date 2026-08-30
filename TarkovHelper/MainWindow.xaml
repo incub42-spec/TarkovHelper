@@ -6,6 +6,17 @@
         Width="980" Height="680"
         Background="#FFF7F8FA" Foreground="#FF15181B"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <!-- строка гаснет, когда нужное количество уже лежит в схроне -->
+        <Style x:Key="EnoughRowStyle" TargetType="ListViewItem">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Enough}" Value="True">
+                    <Setter Property="Background" Value="#FFE8F5E9"/>
+                    <Setter Property="Foreground" Value="#FF2E7D32"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
   <DockPanel>
     <!-- панель профиля: какой персонаж и режим активны сейчас -->
     <!-- панель тёмная, поэтому текст на ней задаём светлым: иначе подписи
@@ -52,6 +63,15 @@
         <TabItem Header="Что собирать">
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <CheckBox x:Name="ChkOnlyNow" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" IsChecked="True"
+                              Content="Только для активных задач"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Прячет предметы для невыданных квестов и дальних уровней убежища"/>
+                    <CheckBox x:Name="ChkHideEnough" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="12,0,0,0" Content="Скрыть собранное"
+                              Checked="OnItemScopeChanged" Unchecked="OnItemScopeChanged"
+                              ToolTip="Убрать строки, где нужное количество уже лежит в схроне"/>
                     <CheckBox x:Name="ChkBarters" DockPanel.Dock="Right" VerticalAlignment="Center"
                               Content="Показывать предметы только для обменов"
                               Checked="OnBarterFilterChanged" Unchecked="OnBarterFilterChanged"/>

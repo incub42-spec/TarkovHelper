@@ -123,15 +123,31 @@ public partial class MainWindow : Window
 
     private void ApplyItemFilter()
     {
+        IEnumerable<ItemRow> rows = _allItems;
+
+        // «Позже» — это предметы для квестов, которых торговец ещё не выдал, и
+        // для дальних уровней убежища. В рейде они только мешают: собирать
+        // надо то, что закрывает сегодняшние задачи.
+        if (ChkOnlyNow.IsChecked == true)
+            rows = rows.Where(r => r.NeededNow);
+
+        if (ChkHideEnough.IsChecked == true)
+            rows = rows.Where(r => !r.Enough);
+
         var q = TxtItemSearch.Text.Trim();
-        var rows = string.IsNullOrEmpty(q)
-            ? _allItems
-            : _allItems.Where(r => r.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-        ItemsList.ItemsSource = rows;
+        if (q.Length > 0)
+            rows = rows.Where(r => r.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+
+        ItemsList.ItemsSource = rows.ToList();
         ApplySort(ItemsList, _itemsSort); // список пересобран — сортировку вернуть
     }
 
     private void OnItemSearchChanged(object sender, TextChangedEventArgs e) => ApplyItemFilter();
+
+    private void OnItemScopeChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) ApplyItemFilter();
+    }
 
     private void OnBarterFilterChanged(object sender, RoutedEventArgs e)
     {
@@ -1360,6 +1376,9 @@ public partial class MainWindow : Window
             // список показывает полную потребность и заставляет держать
             // накопленное в голове.
             ItemId = n.Item.Id;
+            // нужно для того, что доступно сейчас: выданный квест или ближайший
+            // уровень станции
+            NeededNow = n.Needs.Any(x => x.Kind != NeedKind.Barter && x.Available);
             Have = App.Services.Progress.InStash(n.Item.Id);
             var need = n.QuestCount + n.HideoutCount;
             Left = LeftToFind(n);
@@ -1373,6 +1392,7 @@ public partial class MainWindow : Window
         }
 
         public string ItemId { get; }
+        public bool NeededNow { get; }
         public int Have { get; }
         public int Left { get; }
         public string HaveText { get; }
