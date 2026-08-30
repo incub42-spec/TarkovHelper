@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using TarkovHelper.Models;
 using TarkovHelper.Overlay;
 using TarkovHelper.Services;
@@ -679,6 +680,55 @@ public partial class MainWindow : Window
         RefreshYandexStatus();
     }
 
+    /// <summary>
+    /// Пробный запрос: рисуем картинку с надписью и просим её прочитать. Так
+    /// видно, что ключ и каталог рабочие, — и это не отправляет в облако ничего
+    /// личного, в отличие от снимка экрана.
+    /// </summary>
+    private async void OnYandexTestClick(object sender, RoutedEventArgs e)
+    {
+        BtnYandexTest.IsEnabled = false;
+        TxtYandexStatus.Text = "Проверяю…";
+        try
+        {
+            var settings = new Services.YandexOcr.AppSettingsView(
+                App.Services.Settings.YandexOcrKey, App.Services.Settings.YandexFolderId);
+
+            var lines = await Services.YandexOcr.RecognizeAsync(SampleImage("Проверка связи"), settings);
+            TxtYandexStatus.Text = lines is { Count: > 0 }
+                ? $"Связь есть: прочитано «{lines[0].Text}»."
+                : $"Не вышло: {Services.YandexOcr.LastError ?? "ключ или каталог не заполнены"}";
+        }
+        finally
+        {
+            BtnYandexTest.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Чёрный текст на белом — картинка для пробного запроса.</summary>
+    private static byte[] SampleImage(string text)
+    {
+        const int width = 420, height = 90;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+            var formatted = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, new Typeface("Segoe UI"), 36, Brushes.Black,
+                VisualTreeHelper.GetDpi(visual).PixelsPerDip);
+            dc.DrawText(formatted, new Point(20, 20));
+        }
+
+        var target = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        target.Render(visual);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(target));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
     /// <summary>Пишем, готово ли облако к работе и что ответило в прошлый раз.</summary>
     private void RefreshYandexStatus()
     {
@@ -686,10 +736,14 @@ public partial class MainWindow : Window
         var ready = !string.IsNullOrWhiteSpace(s.YandexOcrKey) &&
                     !string.IsNullOrWhiteSpace(s.YandexFolderId);
 
-        TxtYandexStatus.Text = !s.UseYandexOcr
-            ? "Выключено — списки читает встроенный движок Windows."
+        TxtYandexStatus.Text = !ready
+            ? "Нужны ключ и каталог. В поле «Каталог» идёт идентификатор каталога (b1g…), " +
+              "а не сервисного аккаунта (aje…) — их легко перепутать, лежат на соседних страницах."
+            : !s.UseYandexOcr
+            ? "Ключ и каталог заполнены. Поставьте галочку выше, чтобы списки читало облако."
             : !ready
-                ? "Нужны ключ и каталог: Yandex Cloud → сервисный аккаунт с ролью ai.vision.user, там же API-ключ."
+                ? "Нужны ключ и каталог. В поле «Каталог» идёт идентификатор каталога (b1g…), " +
+                  "а не сервисного аккаунта (aje…) — их легко перепутать, лежат на соседних страницах."
                 : Services.YandexOcr.LastError is { } error
                     ? $"Последний запрос не удался: {error}"
                     : "Готово: списки квестов читаются облаком, при сбое — встроенным движком.";

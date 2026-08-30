@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 
@@ -18,7 +18,15 @@ public static class YandexOcr
 {
     private const string Endpoint = "https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText";
 
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
+    // Результат, пришедший позже, чем он был нужен, не нужен вовсе.
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
+
+    /// <summary>
+    /// Синхронных запросов разрешён один в секунду: два подряд — и второй
+    /// получит отказ. F11 нажимают очередями, поэтому частим сами.
+    /// </summary>
+    private static DateTime _lastCall = DateTime.MinValue;
+    private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(1100);
 
     /// <summary>Последняя ошибка запроса — показываем в настройках, а не молчим.</summary>
     public static string? LastError { get; private set; }
@@ -38,12 +46,20 @@ public static class YandexOcr
     {
         if (!IsConfigured(settings)) return null;
 
+        var since = DateTime.UtcNow - _lastCall;
+        if (since < MinInterval)
+        {
+            LastError = "не чаще одного запроса в секунду — кадр прочитан встроенным движком";
+            return null;
+        }
+        _lastCall = DateTime.UtcNow;
+
         try
         {
             var body = JsonSerializer.Serialize(new
             {
                 mimeType = "image/png",
-                languageCodes = new[] { "ru", "en" },
+                languageCodes = new[] { "*" }, // язык определяется сам: в списках и кириллица, и латиница
                 model = "page",
                 content = Convert.ToBase64String(png),
             });
@@ -66,7 +82,7 @@ public static class YandexOcr
             }
 
             var lines = Parse(text);
-            LastError = lines.Count == 0 ? "ответ без текста" : null;
+            LastError = lines.Count == 0 ? "в ответе нет текста" : null;
             return lines;
         }
         catch (Exception ex)

@@ -297,7 +297,7 @@
                 <CheckBox x:Name="ChkYandexOcr" Content="Читать списки квестов через Yandex Vision OCR"
                           Checked="OnYandexOcrChanged" Unchecked="OnYandexOcrChanged"/>
                 <TextBlock Margin="20,2,0,0" TextWrapping="Wrap" Opacity="0.7"
-                           Text="Встроенный движок Windows на коротких русских названиях ошибается дорого: «БАДы» он читает как «6AAbl». Облачный читает кириллицу точнее. Включается только для списков квестов (F11) — снимок этой области уходит в облако Яндекса; подсказки по предметам (F9) он не касается, там важнее мгновенный ответ."/>
+                           Text="Встроенный движок Windows на коротких русских названиях ошибается дорого: «БАДы» он читает как «6AAbl». Облачный читает кириллицу точнее. Включается только для списков квестов (F11) — снимок этой области уходит в облако Яндекса; подсказки по предметам (F9) он не касается, там важнее мгновенный ответ. Нужен платёжный аккаунт: без него ключ создастся, но каждый запрос будет отклонён. Один кадр стоит около 13 копеек, запросы идут не чаще одного в секунду."/>
                 <Grid Margin="20,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -311,8 +311,13 @@
                     <PasswordBox x:Name="TxtYandexKey" Grid.Column="1" Margin="0,0,0,4"
                                  PasswordChanged="OnYandexKeyChanged"/>
                     <TextBlock Text="Каталог:" Grid.Row="1" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBox x:Name="TxtYandexFolder" Grid.Row="1" Grid.Column="1"
-                             VerticalContentAlignment="Center" TextChanged="OnYandexFolderChanged"/>
+                    <DockPanel Grid.Row="1" Grid.Column="1">
+                        <Button x:Name="BtnYandexTest" DockPanel.Dock="Right" Width="110" Margin="8,0,0,0"
+                                Content="Проверить" Click="OnYandexTestClick"/>
+                        <TextBox x:Name="TxtYandexFolder" VerticalContentAlignment="Center"
+                                 TextChanged="OnYandexFolderChanged"
+                                 ToolTip="Идентификатор каталога вида b1g… — он в адресе консоли после /folders/"/>
+                    </DockPanel>
                 </Grid>
                 <TextBlock x:Name="TxtYandexStatus" Margin="20,4,0,0" TextWrapping="Wrap" Opacity="0.7"/>
 

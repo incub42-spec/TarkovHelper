@@ -63,6 +63,12 @@ public static class ScreenOcr
 
     public static bool IsAvailable => GetEngine() != null;
 
+    /// <summary>
+    /// Последний кадр прочитан облаком. Молчаливый откат на встроенный движок
+    /// хуже отказа: «не включено» и «ответило ошибкой» выглядели бы одинаково.
+    /// </summary>
+    public static bool LastUsedCloud { get; private set; }
+
     /// <summary>Кадр в PNG — в таком виде его принимает облачный OCR.</summary>
     private static byte[] EncodePng(byte[] pixels, int width, int height)
     {
@@ -126,6 +132,7 @@ public static class ScreenOcr
 
         // Облачный OCR читает кириллицу заметно точнее, но кадр уходит в сеть
         // и ответ идёт доли секунды — поэтому только там, где это включено.
+        LastUsedCloud = false;
         if (preferCloud && App.Services.Settings.UseYandexOcr)
         {
             var cloud = await YandexOcr.RecognizeAsync(
@@ -134,7 +141,10 @@ public static class ScreenOcr
                     App.Services.Settings.YandexOcrKey, App.Services.Settings.YandexFolderId));
 
             if (cloud is { Count: > 0 })
+            {
+                LastUsedCloud = true;
                 return cloud.Select(l => new Line(l.Text, x + l.X / scale, y + l.Y / scale)).ToList();
+            }
         }
 
         var bitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, outW, outH, BitmapAlphaMode.Premultiplied);

@@ -379,7 +379,12 @@ public partial class OverlayWindow : Window
 
                     // строка со статусом, которую не привязали к базе, могла быть
                     // как событийным заданием, так и не распознанным квестом
-                    if (result.UnmatchedRows.Count > 0)
+                    // откат на встроенный движок должен быть виден: иначе «облако
+            // выключено» и «облако ответило ошибкой» выглядят одинаково
+            if (App.Services.Settings.UseYandexOcr && !Services.ScreenOcr.LastUsedCloud)
+                lines.Add(($"Облако не прочитало кадр: {Services.YandexOcr.LastError}", FailBrush));
+
+            if (result.UnmatchedRows.Count > 0)
                     {
                         lines.Add(($"Строк без совпадения в базе: {result.UnmatchedRows.Count} — " +
                                    "свяжите их в приложении, вкладка «Квесты»", FailBrush));
