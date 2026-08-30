@@ -344,63 +344,41 @@ public partial class OverlayWindow : Window
                 lines.Add(($"С пометкой «новое!» пропущено: {result.New.Count}", MutedBrush));
             if (result.Unknown.Count > 0)
                 lines.Add(($"Без статуса в строке пропущено: {result.Unknown.Count}", MutedBrush));
-            // Список без завершённых — это ровно доступные квесты торговца.
-            // Всё, что мы считаем доступным, но игра не показала, уже сдано.
+            // Список без завершённых — это ровно то, что торговец сейчас
+            // предлагает. Копим увиденное по кадрам: длинный список читается
+            // с прокруткой, и судить о нём можно только целиком.
             if (result.IsAvailableList && result.Trader is { } trader)
             {
-                if (!result.ListFitsFrame)
+                var seen = App.Services.RememberSeenQuests(trader, result.Seen);
+
+                if (!reconcile)
                 {
-                    // Строки дошли до нижнего края: снизу есть ещё, и отсутствие
-                    // квеста в кадре ничего не значит. Сверить такой список
-                    // нельзя — можно только пройти его целиком с прокруткой.
-                    if (reconcile)
-                        lines.Add(("✕ Сверка отменена: список не влез в кадр", FailBrush));
-                    lines.Add(($"{trader}: список длиннее кадра — включите «Завершенные» " +
-                               "и пройдите его с прокруткой", MutedBrush));
-                }
-                else if (reconcile)
-                {
-                    var marked = App.Services.ReconcileTrader(trader, result.Seen);
-                    if (marked.Count == 0)
-                    {
-                        lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
-                    }
-                    else
-                    {
-                        lines.Add(($"✓ {trader}: отмечено сданными {marked.Count} — " +
-                                   "их нет в списке игры", OkBrush));
-                        lines.Add(("Проверьте список: задания выдаются пачками, " +
-                                   "и не выданные тоже не видны", MutedBrush));
-                        foreach (var q in marked.Take(6))
-                            lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
-                        if (marked.Count > 6)
-                            lines.Add(($"…и ещё {marked.Count - 6}", MutedBrush));
-                        // строка со статусом, которую не привязали к базе, могла
-                        // быть как событийным заданием, так и не распознанным квестом
-                        if (result.Unmatched > 0)
-                            lines.Add(($"Строк без совпадения в базе: {result.Unmatched} — " +
-                                       "проверьте список выше", FailBrush));
-                    }
+                    lines.Add(($"{trader}: в обходе списка узнано {seen}", MutedBrush));
+                    lines.Add(($"Прокрутите до конца и нажмите " +
+                               $"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)}" +
+                               " — сверю, чего торговец не предлагает", MutedBrush));
                 }
                 else
                 {
-                    var missing = App.Services.AvailableButNotShown(trader, result.Seen);
-                    if (missing.Count == 0)
-                    {
-                        lines.Add(($"✓ {trader}: список совпадает с игрой", OkBrush));
-                    }
-                    else
-                    {
-                        lines.Add(($"{trader}: у нас доступных на {missing.Count} больше, чем в игре",
-                            MutedBrush));
-                        lines.Add(($"Shift+{Services.HotkeyNames.Describe(App.Services.Settings.QuestHotkey)}" +
-                                   " — отметить их сданными (список должен быть виден целиком)",
-                            MutedBrush));
-                        // с 1.1.0 торговец выдаёт задания пачками по 2–4, и
-                        // невыданные в списке не показываются вовсе
-                        lines.Add(("Осторожно: торговец выдаёт задания пачками, " +
-                                   "не выданные тоже не видны", MutedBrush));
-                    }
+                    // Обход закончен: чего в списке не оказалось, того торговец
+                    // не выдал. Это наблюдение, а не отметка «сдан».
+                    var notIssued = App.Services.FinishTraderWalk(trader);
+                    lines.Add(notIssued.Count == 0
+                        ? ($"✓ {trader}: список совпадает с игрой", OkBrush)
+                        : ($"✓ {trader}: торговец пока не предлагает {notIssued.Count}", OkBrush));
+
+                    foreach (var q in notIssued.Take(6))
+                        lines.Add(($"● {App.Services.Progress.NameOf(q)}", QuestBrush));
+                    if (notIssued.Count > 6)
+                        lines.Add(($"…и ещё {notIssued.Count - 6}", MutedBrush));
+                    if (notIssued.Count > 0)
+                        lines.Add(("Сданными они не считаются — просто уходят из " +
+                                   "сегодняшних дел", MutedBrush));
+
+                    // строка со статусом, которую не привязали к базе, могла быть
+                    // как событийным заданием, так и не распознанным квестом
+                    if (result.Unmatched > 0)
+                        lines.Add(($"Строк без совпадения в базе: {result.Unmatched}", FailBrush));
                 }
             }
 

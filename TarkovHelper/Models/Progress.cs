@@ -68,6 +68,15 @@ public sealed class Progress
     public HashSet<string> ActiveQuests { get; set; } = new();
 
     /// <summary>
+    /// Квесты, которых торговец не показал в списке, хотя по данным базы уже
+    /// мог бы выдать. С патча 1.1.0 задания приходят пачками по два-четыре, и
+    /// невыданные не видны вовсе — значит собирать для них лут не срочно.
+    /// Это наблюдение, а не отметка «сдан»: как только квест появится в кадре,
+    /// признак снимется сам.
+    /// </summary>
+    public HashSet<string> NotIssued { get; set; } = new();
+
+    /// <summary>
     /// Порядок квестов у каждого торговца — такой, каким его показывает игра.
     /// Из данных он не выводится: это не алфавит, не уровень и не порядок в
     /// дампе, а хронология выдачи в конкретном профиле. Зато его видно на
@@ -154,7 +163,8 @@ public sealed class Progress
     /// </summary>
     public bool IsAvailable(Quest quest) =>
         !CompletedQuests.Contains(quest.Id) &&
-        (ActiveQuests.Contains(quest.Id) || MeetsRequirements(quest));
+        (ActiveQuests.Contains(quest.Id) ||
+         (!NotIssued.Contains(quest.Id) && MeetsRequirements(quest)));
 
     /// <summary>Условия выдачи по данным базы.</summary>
     private bool MeetsRequirements(Quest quest) =>

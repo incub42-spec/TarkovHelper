@@ -226,45 +226,61 @@ public sealed class AppServices
     }
 
     /// <summary>
-    /// Квесты торговца, которые программа считает доступными, а игра в списке
-    /// не показала. Без галочки «Завершенные» игра показывает ровно то, что
-    /// выдано или доступно, — значит недостающие уже сданы. Так закрывается
-    /// главный пробел: историю сдачи игра на диске не хранит, а прокручивать
-    /// список завершённых под сканером долго.
+    /// Отмечает, что торговец пока не выдал эти квесты: список в кадре был
+    /// целиком, а их там не оказалось. В отличие от сверки это не объявляет
+    /// квест сданным — просто перестаёт считать его делом сегодняшнего дня.
     /// </summary>
-    public List<Quest> AvailableButNotShown(string trader, IEnumerable<Quest> shown)
+    /// <summary>
+    /// Что уже попалось при обходе списка каждого торговца. Длинный список
+    /// читается с прокруткой, по одному кадру судить нельзя — копим, пока
+    /// игрок не скажет, что дошёл до конца.
+    /// </summary>
+    private readonly Dictionary<string, HashSet<string>> _walk = new();
+
+    /// <summary>Добавляет кадр в обход; возвращает, сколько узнано всего.</summary>
+    public int RememberSeenQuests(string trader, IEnumerable<Quest> shown)
     {
-        if (Data == null) return new List<Quest>();
-        var seen = shown.Select(q => q.Id).ToHashSet();
-        return Data.Quests
-            .Where(q => q.TraderName == trader &&
-                        !seen.Contains(q.Id) &&
-                        Progress.Fits(q.Faction) &&
-                        Progress.IsAvailable(q))
-            .ToList();
+        if (!_walk.TryGetValue(trader, out var seen))
+            _walk[trader] = seen = new HashSet<string>();
+        foreach (var quest in shown)
+            if (quest.TraderName == trader) seen.Add(quest.Id);
+        return seen.Count;
     }
 
     /// <summary>
-    /// Сверка со списком игры: отмечает сданными всё, что программа считает
-    /// доступным у этого торговца, а игра в кадре не показала. Повторяем,
-    /// пока список не перестанет расти: отметив квест сданным, мы открываем
-    /// следующий в цепочке — а его в списке игры тоже не было, значит и он
-    /// сдан.
+    /// Обход списка закончен: всё, чего в нём не оказалось, торговец пока не
+    /// выдал. Возвращает такие квесты и забывает обход, чтобы следующий
+    /// начался с чистого листа.
     /// </summary>
-    public List<Quest> ReconcileTrader(string trader, IEnumerable<Quest> shown)
+    public List<Quest> FinishTraderWalk(string trader)
     {
-        var seen = shown.ToList();
-        var marked = new List<Quest>();
-        // цепочки короткие, но от опечатки в данных петля не нужна
-        for (var round = 0; round < 20; round++)
+        var seen = _walk.TryGetValue(trader, out var s) ? s : new HashSet<string>();
+        _walk.Remove(trader);
+        if (Data == null) return new List<Quest>();
+
+        var notIssued = new List<Quest>();
+        var changed = false;
+        foreach (var quest in Data.Quests)
         {
-            var missing = AvailableButNotShown(trader, seen);
-            if (missing.Count == 0) break;
-            var added = MarkQuestsCompleted(missing, continueScan: true);
-            if (added.Count == 0) break;
-            marked.AddRange(added);
+            if (quest.TraderName != trader) continue;
+
+            if (seen.Contains(quest.Id))
+            {
+                // увидели в списке — торговец его всё-таки выдал
+                changed |= Progress.NotIssued.Remove(quest.Id);
+                continue;
+            }
+
+            if (Progress.CompletedQuests.Contains(quest.Id)) continue;
+            if (!Progress.Fits(quest.Faction)) continue;
+            if (!Progress.IsAvailable(quest)) continue;
+
+            notIssued.Add(quest);
+            changed |= Progress.NotIssued.Add(quest.Id);
         }
-        return marked;
+
+        if (changed) SaveProgress();
+        return notIssued;
     }
 
     /// <summary>Запоминает порядок квестов и их разделы, увиденные в кадре.</summary>
