@@ -73,6 +73,13 @@ public sealed class Quest
     /// прокачки: пока предыдущий не сдан, этот у торговца не появится.
     /// </summary>
     public List<string> Requires { get; set; } = new();
+    /// <summary>
+    /// Полные условия по другим заданиям. Обычно это «сдан», но бывает и
+    /// «взят»: «На распутье» у Рефа выдают, только пока активно «Между двух
+    /// огней», а «Выкуп доверия» — только если «Реагент. Часть 4» провален.
+    /// Таких условий 27, и без них список расходится с игрой.
+    /// </summary>
+    public List<QuestPrerequisite> Prerequisites { get; set; } = new();
 
     /// <summary>
     /// Условия по торговцам: уровень лояльности или репутация. Именно из-за них
@@ -94,6 +101,14 @@ public sealed class Quest
 }
 
 /// <summary>Условие по торговцу: «репутация ≥ 4», «уровень ≥ 2».</summary>
+/// <summary>Условие по другому заданию: его идентификатор и годные статусы.</summary>
+public sealed class QuestPrerequisite
+{
+    public string TaskId { get; set; } = "";
+    /// <summary>«complete», «active», «failed» — подходит любой из списка.</summary>
+    public List<string> Statuses { get; set; } = new();
+}
+
 public sealed class TraderCondition
 {
     public string TraderName { get; set; } = "";
@@ -166,7 +181,7 @@ public sealed class GameData
     /// (фракции квестов, цепочки, описания), старый кеш этого не содержит и его
     /// надо перекачать. Поднимать при каждом таком изменении.
     /// </summary>
-    public const int CurrentSchema = 12;
+    public const int CurrentSchema = 13;
 
     /// <summary>Версия схемы, с которой собран этот кеш.</summary>
     public int SchemaVersion { get; set; }

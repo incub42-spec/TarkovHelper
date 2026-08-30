@@ -140,7 +140,7 @@ internal static partial class QuestMatcher
         /// квесты, которые сейчас выданы или доступны. Тогда отсутствие
         /// квеста в кадре само по себе информация.
         /// </summary>
-        public bool IsAvailableList => Completed.Count == 0 && Total >= 3;
+        public bool IsAvailableList => Completed.Count == 0 && Total >= 1;
 
         /// <summary>
         /// Список уместился в кадр целиком. Если строки со статусом доходят до

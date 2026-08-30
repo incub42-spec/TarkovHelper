@@ -669,15 +669,29 @@ public partial class MainWindow : Window
         TxtQuestObjTitle.Visibility = objectives.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // чего не хватает, чтобы квест открылся
-        var blockers = q.Requires
-            .Where(id => !App.Services.Progress.CompletedQuests.Contains(id))
-            .Select(id => App.Services.Data?.Quests.FirstOrDefault(x => x.Id == id))
-            .Where(x => x != null)
-            .Select(x => App.Services.Progress.NameOf(x!))
+        // условие бывает не только «сдан»: «На распутье» у Рефа выдают, пока
+        // активно «Между двух огней», а «Выкуп доверия» — если «Реагент.
+        // Часть 4» провален
+        static string StatusWord(string status) => status switch
+        {
+            "active" => "взят",
+            "failed" => "провален",
+            _ => "сдан",
+        };
+
+        var blockers = q.Prerequisites
+            .Where(p => !App.Services.Progress.Satisfied(p))
+            .Select(p => new
+            {
+                Quest = App.Services.Data?.Quests.FirstOrDefault(x => x.Id == p.TaskId),
+                Need = string.Join(" или ", p.Statuses.Select(StatusWord)),
+            })
+            .Where(x => x.Quest != null)
+            .Select(x => $"{App.Services.Progress.NameOf(x.Quest!)} ({x.Need})")
             .ToList();
         TxtQuestChain.Text = blockers.Count > 0
-            ? "Сначала надо сдать: " + string.Join(", ", blockers)
-            : q.Requires.Count > 0
+            ? "Сначала нужно: " + string.Join(", ", blockers)
+            : q.Prerequisites.Count > 0
                 ? "Цепочка перед ним пройдена."
                 : "";
 

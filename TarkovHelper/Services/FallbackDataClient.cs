@@ -267,6 +267,23 @@ public static partial class FallbackDataClient
                         .Where(id => id.Length > 0)
                         .ToList()
                     : new List<string>(),
+                Prerequisites = t.TryGetProperty("taskRequirements", out var preq) &&
+                                preq.ValueKind == JsonValueKind.Array
+                    ? preq.EnumerateArray()
+                        .Select(r => new QuestPrerequisite
+                        {
+                            TaskId = Str(r, "task"),
+                            Statuses = r.TryGetProperty("status", out var st) &&
+                                       st.ValueKind == JsonValueKind.Array
+                                ? st.EnumerateArray()
+                                    .Select(x => x.GetString() ?? "")
+                                    .Where(x => x.Length > 0)
+                                    .ToList()
+                                : new List<string>(),
+                        })
+                        .Where(r => r.TaskId.Length > 0 && r.Statuses.Count > 0)
+                        .ToList()
+                    : new List<QuestPrerequisite>(),
                 KappaRequired = t.TryGetProperty("kappaRequired", out var k) && k.ValueKind == JsonValueKind.True,
             };
 

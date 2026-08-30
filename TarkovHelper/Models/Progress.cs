@@ -169,10 +169,25 @@ public sealed class Progress
     /// <summary>Условия выдачи по данным базы.</summary>
     private bool MeetsRequirements(Quest quest) =>
         (!FailedQuests.Contains(quest.Id) || quest.Restartable) &&
-        quest.Requires.All(CompletedQuests.Contains) &&
+        (quest.Prerequisites.Count > 0
+            ? quest.Prerequisites.All(Satisfied)
+            : quest.Requires.All(CompletedQuests.Contains)) &&
         (PlayerLevel <= 0 || quest.MinPlayerLevel <= PlayerLevel) &&
         !LockedTraders.Contains(quest.TraderName) &&
         quest.TraderConditions.All(Meets);
+
+    /// <summary>
+    /// Выполнено ли условие по другому заданию. Подходит любой из указанных
+    /// статусов: «сдан», «взят» или «провален».
+    /// </summary>
+    public bool Satisfied(QuestPrerequisite need) =>
+        need.Statuses.Any(status => status switch
+        {
+            "complete" => CompletedQuests.Contains(need.TaskId),
+            "active" => ActiveQuests.Contains(need.TaskId),
+            "failed" => FailedQuests.Contains(need.TaskId),
+            _ => true, // незнакомый статус не должен прятать квест
+        });
 
     /// <summary>
     /// Выполнено ли условие по торговцу. Незаполненные уровень и репутацию
