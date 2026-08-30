@@ -63,6 +63,20 @@ public static class ScreenOcr
 
     public static bool IsAvailable => GetEngine() != null;
 
+    /// <summary>Кадр в PNG — в таком виде его принимает облачный OCR.</summary>
+    private static byte[] EncodePng(byte[] pixels, int width, int height)
+    {
+        var src = System.Windows.Media.Imaging.BitmapSource.Create(
+            width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null,
+            pixels, width * 4);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(src));
+
+        using var stream = new System.IO.MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
     /// <summary>Распознанная строка с позицией (в физических пикселях экрана).</summary>
     public sealed record Line(string Text, double X, double Y);
 
@@ -76,7 +90,7 @@ public static class ScreenOcr
     /// так читаются мелкие цифры уровня на иконках убежища.</summary>
     public static async Task<List<Line>> RecognizeLayoutAsync(
         int x, int y, int width, int height, int scaleHint = Scale, string? savePngPath = null,
-        bool binarize = false, bool bothLanguages = false)
+        bool binarize = false, bool bothLanguages = false, bool preferCloud = false)
     {
         var engine = GetEngine()
             ?? throw new InvalidOperationException(
@@ -108,6 +122,19 @@ public static class ScreenOcr
             {
                 // отладочный снимок не должен мешать распознаванию
             }
+        }
+
+        // Облачный OCR читает кириллицу заметно точнее, но кадр уходит в сеть
+        // и ответ идёт доли секунды — поэтому только там, где это включено.
+        if (preferCloud && App.Services.Settings.UseYandexOcr)
+        {
+            var cloud = await YandexOcr.RecognizeAsync(
+                EncodePng(pixels, outW, outH),
+                new YandexOcr.AppSettingsView(
+                    App.Services.Settings.YandexOcrKey, App.Services.Settings.YandexFolderId));
+
+            if (cloud is { Count: > 0 })
+                return cloud.Select(l => new Line(l.Text, x + l.X / scale, y + l.Y / scale)).ToList();
         }
 
         var bitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, outW, outH, BitmapAlphaMode.Premultiplied);

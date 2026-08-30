@@ -269,6 +269,16 @@ public sealed class AppSettings
     /// <summary>Раскладывать квесты по разделам торговца, как это делает игра.</summary>
     public bool GroupQuests { get; set; } = true;
 
+    /// <summary>
+    /// Облачный OCR Яндекса для сканирования списков. Встроенный движок на
+    /// коротких русских названиях ошибается дорого — «БАДы» он читает как
+    /// «6AAbl». Кадр области при этом уходит в облако, поэтому по умолчанию
+    /// выключено и на подсказку предмета (F9) не влияет: там важнее скорость.
+    /// </summary>
+    public bool UseYandexOcr { get; set; }
+    public string? YandexOcrKey { get; set; }
+    public string? YandexFolderId { get; set; }
+
     /// <summary>Имя активного профиля.</summary>
     public string ActiveProfile { get; set; } = "";
     public List<Progress> Profiles { get; set; } = new();

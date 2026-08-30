@@ -30,6 +30,12 @@ public partial class MainWindow : Window
         RefreshProfiles();
         ChkBarters.IsChecked = s.Settings.ShowBarterItems;
         ChkGroupQuests.IsChecked = s.Settings.GroupQuests;
+        ChkYandexOcr.IsChecked = s.Settings.UseYandexOcr;
+        if (TxtYandexKey.Password.Length == 0 && s.Settings.YandexOcrKey is { } yk)
+            TxtYandexKey.Password = yk;
+        if (TxtYandexFolder.Text.Length == 0 && s.Settings.YandexFolderId is { } yf)
+            TxtYandexFolder.Text = yf;
+        RefreshYandexStatus();
         ChkScanRegion.IsChecked = s.Settings.ShowScanRegion;
         TxtGamePath.Text = s.Settings.GamePath ?? "";
         TxtDataStatus.Text = s.DataStatus;
@@ -645,6 +651,48 @@ public partial class MainWindow : Window
 
         BtnUnmatched.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
         BtnUnmatched.Content = $"Не распознано ({count})…";
+    }
+
+    private void OnYandexOcrChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        App.Services.Settings.UseYandexOcr = ChkYandexOcr.IsChecked == true;
+        Services.DataStore.SaveSettings(App.Services.Settings);
+        RefreshYandexStatus();
+    }
+
+    private void OnYandexKeyChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        var key = TxtYandexKey.Password.Trim();
+        App.Services.Settings.YandexOcrKey = key.Length > 0 ? key : null;
+        Services.DataStore.SaveSettings(App.Services.Settings);
+        RefreshYandexStatus();
+    }
+
+    private void OnYandexFolderChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        var id = TxtYandexFolder.Text.Trim();
+        App.Services.Settings.YandexFolderId = id.Length > 0 ? id : null;
+        Services.DataStore.SaveSettings(App.Services.Settings);
+        RefreshYandexStatus();
+    }
+
+    /// <summary>Пишем, готово ли облако к работе и что ответило в прошлый раз.</summary>
+    private void RefreshYandexStatus()
+    {
+        var s = App.Services.Settings;
+        var ready = !string.IsNullOrWhiteSpace(s.YandexOcrKey) &&
+                    !string.IsNullOrWhiteSpace(s.YandexFolderId);
+
+        TxtYandexStatus.Text = !s.UseYandexOcr
+            ? "Выключено — списки читает встроенный движок Windows."
+            : !ready
+                ? "Нужны ключ и каталог: Yandex Cloud → сервисный аккаунт с ролью ai.vision.user, там же API-ключ."
+                : Services.YandexOcr.LastError is { } error
+                    ? $"Последний запрос не удался: {error}"
+                    : "Готово: списки квестов читаются облаком, при сбое — встроенным движком.";
     }
 
     private void OnGroupQuestsChanged(object sender, RoutedEventArgs e)

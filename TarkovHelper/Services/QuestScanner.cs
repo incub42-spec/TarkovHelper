@@ -33,7 +33,7 @@ internal static class QuestScanner
         var w = (int)(width * 0.36);
         var h = (int)(height * 0.76);
 
-        var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 2, bothLanguages: true);
+        var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 2, bothLanguages: true, preferCloud: true);
         var result = QuestMatcher.Match(
             lines.Select(l => new QuestMatcher.Line(l.Text, l.X, l.Y)).ToList(),
             data, progress, new QuestMatcher.Region(x, y, w, h));
