@@ -30,7 +30,10 @@ internal static class QuestScanner
         // список заданий занимает левую треть экрана под лентой торговцев
         var x = r.Left;
         var y = r.Top + (int)(height * 0.22);
-        var w = (int)(width * 0.36);
+        // Колонка списка занимает примерно треть экрана. Брали с запасом, но
+        // в кадр попадала карточка задания справа: лишний текст мешает и
+        // распознаванию, и разбору рядов.
+        var w = (int)(width * 0.32);
         var h = (int)(height * 0.76);
 
         var lines = await ScreenOcr.RecognizeLayoutAsync(x, y, w, h, scaleHint: 2, bothLanguages: true, preferCloud: true);

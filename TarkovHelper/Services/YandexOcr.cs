@@ -60,7 +60,10 @@ public static class YandexOcr
             {
                 mimeType = "image/png",
                 languageCodes = new[] { "*" }, // язык определяется сам: в списках и кириллица, и латиница
-                model = "page",
+                // «page» читает кадр как одну колонку и на экране с боковой
+                // панелью мешает блоки в поток; у списка квестов справа всегда
+                // карточка задания, поэтому нужна сортировка по колонкам
+                model = "page-column-sort",
                 content = Convert.ToBase64String(png),
             });
 
