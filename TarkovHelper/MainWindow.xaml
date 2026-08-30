@@ -86,6 +86,11 @@
                              TextChanged="OnQuestFilterChanged"
                              ToolTip="Поиск по названию квеста или торговцу"/>
                 </DockPanel>
+                <!-- в базе tarkov.dev только побочные задания торговцев; сюжетные
+                     главы и оперативные туда не попадают, и это надо сказать явно,
+                     иначе выглядит так, будто программа потеряла квесты -->
+                <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.7"
+                           Text="Здесь побочные задания торговцев — всё, что есть в базе (514 шт.). Сюжетных глав («Тур», «Небеса в огне») и оперативных заданий в источнике нет, отмечать их пока негде."/>
                 <ListView x:Name="QuestsList"
                           GridViewColumnHeader.Click="OnColumnHeaderClick">
                     <ListView.ContextMenu>
